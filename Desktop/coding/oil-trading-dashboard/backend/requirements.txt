@@ -1,0 +1,44 @@
+# ── Core Framework ──
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
+pydantic==2.11.3
+pydantic-settings==2.9.1
+
+# ── Database ──
+sqlalchemy[asyncio]==2.0.41
+asyncpg==0.30.0
+alembic==1.15.2
+greenlet==3.2.3
+
+# ── Redis / Cache ──
+redis[hiredis]==6.2.0
+
+# ── Celery / Workers ──
+celery[redis]==5.5.2
+
+# ── HTTP Clients ──
+httpx==0.28.1
+aiohttp==3.12.6
+
+# ── Data / Finance ──
+yfinance==0.2.62
+pandas==2.3.0
+numpy==2.2.6
+scipy==1.15.3
+scikit-learn==1.6.1
+
+# ── Web Scraping ──
+beautifulsoup4==4.13.4
+feedparser==6.0.11
+lxml==5.4.0
+
+# ── Observability ──
+prometheus-client==0.22.1
+prometheus-fastapi-instrumentator==7.0.2
+structlog==25.4.0
+
+# ── Utilities ──
+python-dotenv==1.1.0
+orjson==3.10.18
+python-multipart==0.0.20
+websockets==15.0.1

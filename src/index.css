@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+/* ── Custom Animations ───────────────────────────────────────── */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease forwards;
+}
+
+/* ── Scrollbar Hide Utility ──────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Base Styles ─────────────────────────────────────────────── */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Tabular Nums for Recharts ───────────────────────────────── */
+.recharts-text {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Recharts Legend Clickable ────────────────────────────────── */
+.recharts-legend-item {
+  cursor: pointer;
+}
+
+.recharts-legend-item:hover {
+  opacity: 0.7;
+}
