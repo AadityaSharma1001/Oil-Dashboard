@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import {
   LineChart, Line, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -6,6 +6,8 @@ import {
 } from 'recharts';
 import Card from './Card';
 import { useLiveChartData, useLiveSentiment } from '../hooks/useLiveData';
+import { useApiData } from '../hooks/useApiData';
+import { fetchSeasonality, fetchHeatmap, fetchWeeklyMetrics, fetchSentiment, fetchNews } from '../api';
 import {
   SEASONALITY_DATA, HEATMAP_MONTHS, HEATMAP_YEARS, HEATMAP_RETURNS,
   SEASONAL_METRICS, INITIAL_SENTIMENT_SCORE, SENTIMENT_TREND_DATA,
@@ -33,9 +35,15 @@ const CustomTooltip = ({ active, payload, label, prefix = '$' }) => {
 
 /* ═══════════════════════ Seasonality Chart ═══════════════════ */
 const SeasonalityChart = memo(() => {
-  const data = useLiveChartData(SEASONALITY_DATA, 'current', 3000, 0.0004);
+  const fetchSeas = useCallback(() => fetchSeasonality('wti'), []);
+  const { data: apiData, source } = useApiData(fetchSeas, { fallback: null, refreshInterval: 300000 });
+  const seasonData = useMemo(() => {
+    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) return apiData.data;
+    return SEASONALITY_DATA;
+  }, [apiData]);
+  const data = useLiveChartData(seasonData, 'current', 3000, 0.0004);
   return (
-    <Card title="Current Year vs Historical Averages"
+    <Card title="Current Year vs Historical Averages" source={source}
       badge={
         <div className="flex gap-3">
           <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-4 h-0.5 bg-blue-900 inline-block" /> 2026 Actual</span>

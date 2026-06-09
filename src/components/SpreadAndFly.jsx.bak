@@ -1,12 +1,17 @@
-import React, { memo, useState, useCallback, useMemo } from 'react';
+import React, { memo, useState } from 'react';
 import {
   ComposedChart, Line, Area, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import Card from './Card';
-import { useApiData } from '../hooks/useApiData';
-import { fetchCalendarSpreads, fetchFlySpreads } from '../api';
+import { useLiveChartData } from '../hooks/useLiveData';
+import {
+  WTI_CAL_SPREADS, BRENT_CAL_SPREADS,
+  WTI_FLY_TERM, BRENT_FLY_TERM,
+  WTI_FLY_HISTORY, WTI_FLY_KEYS, WTI_FLY_LABELS,
+  BRENT_FLY_HISTORY, BRENT_FLY_KEYS, BRENT_FLY_LABELS_ARR,
+} from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 9, fill: '#868E96' };
 const GRID_STYLE = { stroke: 'rgba(0,0,0,0.05)' };
@@ -37,23 +42,18 @@ const SpreadTooltip = ({ active, payload, label }) => {
 };
 
 /* ── Calendar Spread Chart (single spread with mean + range) ── */
-const CalSpreadChart = memo(({ title, spreadsMap, accentColors, source }) => {
-  const keys = Object.keys(spreadsMap || {});
-  const [activeSpread, setActiveSpread] = useState(keys[0] || 'M1-M2');
-  
-  // Always ensure activeSpread is a valid key if available
-  const currentKey = keys.includes(activeSpread) ? activeSpread : keys[0];
-  const data = spreadsMap?.[currentKey] || [];
+const CalSpreadChart = memo(({ title, spreadsMap, accentColors }) => {
+  const keys = Object.keys(spreadsMap);
+  const [activeSpread, setActiveSpread] = useState(keys[0]);
+  const rawData = spreadsMap[activeSpread];
+  const data = useLiveChartData(rawData, 'value', 3000, 0.004);
 
-  const last = data.length > 0 ? data[data.length - 1] : null;
+  const last = data[data.length - 1];
   const deviation = last ? ((last.value - last.mean) / (last.hi - last.lo) * 100).toFixed(0) : '0';
-
-  if (!keys.length) return <Card title={title} source={source}>Loading...</Card>;
 
   return (
     <Card
       title={title}
-      source={source}
       badge={
         <div className="flex items-center gap-0.5 flex-wrap">
           {keys.map((k, i) => (
@@ -61,11 +61,11 @@ const CalSpreadChart = memo(({ title, spreadsMap, accentColors, source }) => {
               key={k}
               onClick={() => setActiveSpread(k)}
               className={`px-1.5 py-0.5 text-[8px] font-bold uppercase rounded transition-all ${
-                currentKey === k
+                activeSpread === k
                   ? 'text-white shadow-sm'
                   : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
               }`}
-              style={currentKey === k ? { background: accentColors[i % accentColors.length] } : {}}
+              style={activeSpread === k ? { background: accentColors[i] } : {}}
             >
               {k}
             </button>
@@ -77,9 +77,9 @@ const CalSpreadChart = memo(({ title, spreadsMap, accentColors, source }) => {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id={`calGrad-${title.replace(/\s+/g,'-')}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={accentColors[keys.indexOf(currentKey) % accentColors.length]} stopOpacity={0.12} />
-                <stop offset="100%" stopColor={accentColors[keys.indexOf(currentKey) % accentColors.length]} stopOpacity={0.01} />
+              <linearGradient id={`calGrad-${title}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accentColors[keys.indexOf(activeSpread)]} stopOpacity={0.12} />
+                <stop offset="100%" stopColor={accentColors[keys.indexOf(activeSpread)]} stopOpacity={0.01} />
               </linearGradient>
             </defs>
             <CartesianGrid {...GRID_STYLE} />
@@ -97,17 +97,16 @@ const CalSpreadChart = memo(({ title, spreadsMap, accentColors, source }) => {
             {/* Spread value */}
             <Area
               dataKey="value"
-              name={currentKey}
-              type="monotone"
-              stroke={accentColors[keys.indexOf(currentKey) % accentColors.length]}
+              name={activeSpread}
+              stroke={accentColors[keys.indexOf(activeSpread)]}
+              fill={`url(#calGrad-${title})`}
               strokeWidth={2}
-              fill={`url(#calGrad-${title.replace(/\s+/g,'-')})`}
-              activeDot={{ r: 4, strokeWidth: 0 }}
+              dot={false}
+              activeDot={{ r: 3, strokeWidth: 0 }}
             />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-
       {/* Metrics strip */}
       <div className="flex items-center justify-between mt-2 px-1 text-[9px] text-slate-500">
         <div className="flex items-center gap-3">
@@ -126,18 +125,15 @@ const CalSpreadChart = memo(({ title, spreadsMap, accentColors, source }) => {
 });
 
 /* ── Combined Fly Card (Term Structure + History in tabs) ────── */
-const FlyCard = memo(({ title, flyTerm, flyHistory, flyKeys, barColor, lineColors, source }) => {
+const FlyCard = memo(({ title, flyTerm, flyHistory, flyKeys, flyLabels, barColor, lineColors }) => {
   const [view, setView] = useState('term');
-
-  if (!flyTerm || !flyTerm.length) return <Card title={title} source={source}>Loading...</Card>;
 
   return (
     <Card
       title={title}
-      source={source}
       badge={
         <div className="flex items-center gap-0.5">
-          {[['term', 'Term Structure'], ['history', '20d History']].map(([k, label]) => (
+          {[['term', 'Term Structure'], ['history', '30d History']].map(([k, label]) => (
             <button
               key={k}
               onClick={() => setView(k)}
@@ -162,8 +158,8 @@ const FlyCard = memo(({ title, flyTerm, flyHistory, flyKeys, barColor, lineColor
               <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v.toFixed(2)}`} domain={['auto', 'auto']} width={45} />
               <Tooltip content={<SpreadTooltip />} />
               <ReferenceLine y={0} stroke="#ADB5BD" strokeDasharray="4 3" strokeOpacity={0.5} />
-              <Line dataKey="hi" name="High" stroke="#E57373" strokeWidth={1} strokeDasharray="3 3" dot={{ r: 2, fill: '#E57373' }} />
-              <Line dataKey="lo" name="Low" stroke="#64B5F6" strokeWidth={1} strokeDasharray="3 3" dot={{ r: 2, fill: '#64B5F6' }} />
+              <Line dataKey="hi" name="5yr High" stroke="#E57373" strokeWidth={1} strokeDasharray="3 3" dot={{ r: 2, fill: '#E57373' }} />
+              <Line dataKey="lo" name="5yr Low" stroke="#64B5F6" strokeWidth={1} strokeDasharray="3 3" dot={{ r: 2, fill: '#64B5F6' }} />
               <Line dataKey="mean" name="Mean" stroke="#ADB5BD" strokeWidth={1.5} dot={{ r: 2.5, fill: '#ADB5BD' }} />
               <Bar dataKey="value" name="Current" fill={barColor} fillOpacity={0.7} radius={[3, 3, 0, 0]} barSize={18} />
             </ComposedChart>
@@ -179,12 +175,12 @@ const FlyCard = memo(({ title, flyTerm, flyHistory, flyKeys, barColor, lineColor
                 <Line
                   key={k}
                   dataKey={k}
-                  name={k}
-                  stroke={lineColors[i % lineColors.length]}
+                  name={flyLabels[i]}
+                  stroke={lineColors[i]}
                   strokeWidth={i === 0 ? 2 : 1.5}
                   strokeDasharray={i > 0 ? `${4 + i} ${2 + i}` : undefined}
                   dot={false}
-                  activeDot={{ r: 3, strokeWidth: 0, fill: lineColors[i % lineColors.length] }}
+                  activeDot={{ r: 3, strokeWidth: 0, fill: lineColors[i] }}
                 />
               ))}
             </ComposedChart>
@@ -195,77 +191,41 @@ const FlyCard = memo(({ title, flyTerm, flyHistory, flyKeys, barColor, lineColor
   );
 });
 
-/* ── Live Wrappers ───────────────────────────────────────────── */
-
-const LiveCalSpreads = memo(({ commodity, title, accentColors }) => {
-  const fetchFn = useCallback(() => fetchCalendarSpreads(commodity, 'ALL'), [commodity]);
-  const { data, source } = useApiData(fetchFn, { fallback: null, refreshInterval: 60000 });
-  const spreadsMap = data?.data || {};
-  return <CalSpreadChart title={title} spreadsMap={spreadsMap} accentColors={accentColors} source={source} />;
-});
-
-const LiveFlySpreads = memo(({ commodity, title, barColor, lineColors }) => {
-  const fetchFn = useCallback(() => fetchFlySpreads(commodity), [commodity]);
-  const { data, source } = useApiData(fetchFn, { fallback: null, refreshInterval: 60000 });
-  const termStructure = data?.term_structure || [];
-
-  const flyHistory = useMemo(() => {
-    if (!termStructure.length) return [];
-    const dates = termStructure[0]?.history?.map(h => h.day) || [];
-    return dates.map((d, i) => {
-      const row = { day: d };
-      termStructure.forEach(ts => {
-         row[ts.label] = ts.history?.[i]?.value;
-      });
-      return row;
-    });
-  }, [termStructure]);
-
-  const flyKeys = termStructure.map(t => t.label);
-
-  return (
-    <FlyCard
-      title={title}
-      flyTerm={termStructure}
-      flyHistory={flyHistory}
-      flyKeys={flyKeys}
-      barColor={barColor}
-      lineColors={lineColors}
-      source={source}
-    />
-  );
-});
-
-
 /* ═══════════════════════ Main Layout ═════════════════════════ */
 const SpreadAndFly = memo(function SpreadAndFly() {
   return (
     <div className="space-y-3.5 animate-fadeIn">
       {/* Row 1: Individual Calendar Spreads */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-        <LiveCalSpreads
-          commodity="wti"
+        <CalSpreadChart
           title="WTI Calendar Spreads"
+          spreadsMap={WTI_CAL_SPREADS}
           accentColors={SPREAD_COLORS}
         />
-        <LiveCalSpreads
-          commodity="brent"
+        <CalSpreadChart
           title="Brent Calendar Spreads"
+          spreadsMap={BRENT_CAL_SPREADS}
           accentColors={BRENT_SPREAD_COLORS}
         />
       </div>
 
       {/* Row 2: Fly (Term Structure + History merged) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-        <LiveFlySpreads
-          commodity="wti"
+        <FlyCard
           title="WTI Butterfly Spread"
+          flyTerm={WTI_FLY_TERM}
+          flyHistory={WTI_FLY_HISTORY}
+          flyKeys={WTI_FLY_KEYS}
+          flyLabels={WTI_FLY_LABELS}
           barColor="#0D47A1"
           lineColors={FLY_COLORS}
         />
-        <LiveFlySpreads
-          commodity="brent"
+        <FlyCard
           title="Brent Butterfly Spread"
+          flyTerm={BRENT_FLY_TERM}
+          flyHistory={BRENT_FLY_HISTORY}
+          flyKeys={BRENT_FLY_KEYS}
+          flyLabels={BRENT_FLY_LABELS_ARR}
           barColor="#6A1B9A"
           lineColors={BRENT_FLY_COLORS}
         />

@@ -1,10 +1,12 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
+  AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
 import Card from './Card';
-import { useLiveChartData } from '../hooks/useLiveData';
+import { useApiData } from '../hooks/useApiData';
+import { fetchBDTI } from '../api';
 import { BDTI_DATA } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 10, fill: '#868E96' };
@@ -15,54 +17,55 @@ const BDTITooltip = ({ active, payload, label }) => {
   return (
     <div className="bg-slate-900 text-white text-[11px] px-2.5 py-1.5 rounded-md shadow-lg">
       <div className="font-semibold text-slate-300 mb-0.5">{label}</div>
-      <div className="flex items-center gap-1.5">
-        <span className="text-slate-400">BDTI:</span>
-        <span className="font-semibold tabular-nums">{payload[0].value}</span>
-        <span className="text-slate-500">pts</span>
-      </div>
+      <div className="font-semibold tabular-nums">{payload[0]?.value?.toFixed(0)}</div>
     </div>
   );
 };
 
 const BDTIFreight = memo(function BDTIFreight() {
-  const data = useLiveChartData(BDTI_DATA, 'value', 5000, 0.002);
-  const last = data[data.length - 1]?.value ?? 0;
-  const first = data[0]?.value ?? last;
-  const change30d = last - first;
-  const pct = ((change30d / first) * 100).toFixed(1);
+  const { data: apiData, source } = useApiData(fetchBDTI, { fallback: null, refreshInterval: 300000 });
+
+  const chartData = useMemo(() => {
+    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) {
+      return apiData.data;
+    }
+    return BDTI_DATA;
+  }, [apiData]);
+
+  const current = apiData?.current || chartData[chartData.length - 1]?.value || 0;
+  const change30d = apiData?.change_30d ?? (chartData[chartData.length - 1]?.value - chartData[0]?.value) ?? 0;
+  const changePct = apiData?.change_30d_pct ?? ((change30d / (chartData[0]?.value || 1)) * 100);
+  const isUp = change30d >= 0;
 
   return (
     <Card
       title="BDTI Freight Index"
-      badge={
-        <span className="flex items-center gap-1.5">
-          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[9px] font-bold rounded tracking-wide">SIM</span>
-          <span className="tabular-nums">{last.toFixed(0)} pts</span>
-        </span>
-      }
+      badge={`${isUp ? '+' : ''}${changePct.toFixed(1)}% 30d`}
+      badgeVariant={isUp ? 'green' : 'red'}
+      source={source}
     >
+      <div className="mb-2 text-center">
+        <span className="text-xl font-bold text-slate-800 tabular-nums">{current.toFixed(0)}</span>
+        <span className={`text-xs font-semibold ml-2 ${isUp ? 'text-emerald-600' : 'text-red-600'}`}>
+          {isUp ? '▲' : '▼'} {Math.abs(change30d).toFixed(0)}
+        </span>
+      </div>
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data}>
+          <AreaChart data={chartData}>
             <defs>
               <linearGradient id="bdtiGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#795548" stopOpacity={0.15} />
-                <stop offset="100%" stopColor="#795548" stopOpacity={0.01} />
+                <stop offset="0%" stopColor="#0D47A1" stopOpacity={0.12} />
+                <stop offset="100%" stopColor="#0D47A1" stopOpacity={0.01} />
               </linearGradient>
             </defs>
             <CartesianGrid {...GRID_STYLE} />
             <XAxis dataKey="day" tick={AXIS_STYLE} interval={5} />
             <YAxis tick={AXIS_STYLE} domain={['auto', 'auto']} />
             <Tooltip content={<BDTITooltip />} />
-            <Area dataKey="value" name="BDTI" stroke="#795548" fill="url(#bdtiGrad)" strokeWidth={2} dot={false} />
+            <Area dataKey="value" name="BDTI" stroke="#0D47A1" fill="url(#bdtiGrad)" strokeWidth={2} dot={false} />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
-      <div className="flex items-center justify-between mt-2 px-1 text-[10px]">
-        <span className="text-slate-400">30d change:</span>
-        <span className={`font-semibold tabular-nums ${change30d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-          {change30d >= 0 ? '+' : ''}{change30d.toFixed(0)} pts ({change30d >= 0 ? '+' : ''}{pct}%)
-        </span>
       </div>
     </Card>
   );

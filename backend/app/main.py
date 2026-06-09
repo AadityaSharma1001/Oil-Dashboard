@@ -24,45 +24,52 @@ from app.adapters import register_all_adapters
 from app.api.v1.router import router as v1_router
 from app.api.websocket_manager import ws_manager
 
+import structlog
+logger = structlog.get_logger()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     # ── Startup ──
+    background_tasks = []
 
-    # Connect Redis
-    await cache.connect()
-    ws_manager.set_redis(cache.client)
+    # Connect Redis (non-fatal if unavailable)
+    try:
+        await cache.connect()
+        if cache.client:
+            ws_manager.set_redis(cache.client)
+            # Start WebSocket Redis listener only if Redis is available
+            ws_task = asyncio.create_task(ws_manager.start_redis_listener())
+            background_tasks.append(ws_task)
+    except Exception as e:
+        logger.warning("redis_startup_failed_continuing_without_cache", error=str(e))
 
     # Register all adapters with fallback chains
     register_all_adapters()
 
-    # Start WebSocket Redis listener in background
-    ws_task = asyncio.create_task(ws_manager.start_redis_listener())
+    # Initialize news loop in background
+    try:
+        from app.adapters.news_feed import feed
 
-    # Initialize FinBERT in background to avoid blocking startup
-    from app.analytics.sentiment import init_finbert
-    from app.adapters.news_feed import feed
-    
-    async def init_nlp():
-        await asyncio.to_thread(init_finbert)
-    
-    async def news_loop():
-        while True:
-            try:
-                await feed.refresh()
-            except Exception:
-                pass
-            await asyncio.sleep(60) # refresh every minute
-            
-    asyncio.create_task(init_nlp())
-    news_task = asyncio.create_task(news_loop())
+        async def news_loop():
+            while True:
+                try:
+                    await feed.refresh()
+                except Exception:
+                    pass
+                await asyncio.sleep(60)  # refresh every minute
+
+        news_task = asyncio.create_task(news_loop())
+        background_tasks.append(news_task)
+    except Exception as e:
+        logger.warning("news_startup_failed", error=str(e))
 
     yield
 
     # ── Shutdown ──
-    ws_task.cancel()
-    news_task.cancel()
+    for task in background_tasks:
+        task.cancel()
     await cache.close()
 
 

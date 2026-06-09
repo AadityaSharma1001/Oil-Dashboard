@@ -1,4 +1,4 @@
-"""TwelveData adapter — real-time market data, intraday bars, technical indicators."""
+"""TwelveData adapter — real-time market data for DXY and other instruments."""
 
 import httpx
 import structlog
@@ -8,9 +8,9 @@ from app.config import get_settings
 logger = structlog.get_logger()
 settings = get_settings()
 
+# DXY and additional instruments fetched via TwelveData
 TWELVEDATA_SYMBOLS = {
-    "wti": "CL", "brent": "BZ", "rbob": "RB",
-    "ho": "HO", "natgas": "NG", "gasoil": "QS",
+    "dxy": {"symbol": "DXY", "label": "DXY", "exchange": ""},
 }
 
 
@@ -29,6 +29,8 @@ class TwelveDataAdapter(DataAdapter):
         try:
             if data_type == "quote":
                 return await self._fetch_quotes(params)
+            elif data_type == "tickers":
+                return await self._fetch_ticker_format(params)
             elif data_type == "time_series":
                 return await self._fetch_time_series(params)
             else:
@@ -38,7 +40,8 @@ class TwelveDataAdapter(DataAdapter):
             return AdapterResult(data=None, status=SourceStatus.DOWN, source_name=self.source_name, error_message=str(e))
 
     async def _fetch_quotes(self, params: dict) -> AdapterResult:
-        symbols = params.get("symbols", list(TWELVEDATA_SYMBOLS.values()))
+        """Raw quote data from TwelveData."""
+        symbols = params.get("symbols", [info["symbol"] for info in TWELVEDATA_SYMBOLS.values()])
         symbol_str = ",".join(symbols)
         resp = await self.client.get(f"{self.BASE_URL}/quote", params={
             "symbol": symbol_str, "apikey": settings.twelvedata_api_key,
@@ -47,8 +50,48 @@ class TwelveDataAdapter(DataAdapter):
         data = resp.json()
         return AdapterResult(data=data, status=SourceStatus.LIVE, source_name=self.source_name)
 
+    async def _fetch_ticker_format(self, params: dict) -> AdapterResult:
+        """Fetch DXY (and other instruments) formatted as ticker objects
+        matching the frontend's expected shape: { id, label, price, change, pct }."""
+        result = []
+
+        for key, info in TWELVEDATA_SYMBOLS.items():
+            try:
+                resp = await self.client.get(f"{self.BASE_URL}/quote", params={
+                    "symbol": info["symbol"],
+                    "apikey": settings.twelvedata_api_key,
+                })
+                if resp.status_code != 200:
+                    continue
+
+                data = resp.json()
+                if "code" in data and data["code"] != 200:
+                    # API error
+                    logger.warning("twelvedata_quote_error", symbol=info["symbol"], response=data)
+                    continue
+
+                price = float(data.get("close", 0))
+                prev_close = float(data.get("previous_close", price))
+                change = price - prev_close
+                pct = (change / prev_close * 100) if prev_close != 0 else 0
+
+                result.append({
+                    "id": key,
+                    "label": info["label"],
+                    "price": round(price, 2),
+                    "change": round(change, 2),
+                    "pct": f"{'+' if pct >= 0 else ''}{pct:.2f}%",
+                })
+            except Exception as e:
+                logger.warning("twelvedata_ticker_error", symbol=key, error=str(e))
+
+        if not result:
+            return self.get_mock_data(params)
+
+        return AdapterResult(data=result, status=SourceStatus.LIVE, source_name=self.source_name)
+
     async def _fetch_time_series(self, params: dict) -> AdapterResult:
-        symbol = params.get("symbol", "CL")
+        symbol = params.get("symbol", "DXY")
         interval = params.get("interval", "1min")
         outputsize = params.get("outputsize", 390)
         resp = await self.client.get(f"{self.BASE_URL}/time_series", params={
@@ -65,8 +108,22 @@ class TwelveDataAdapter(DataAdapter):
     async def health_check(self) -> SourceStatus:
         try:
             resp = await self.client.get(f"{self.BASE_URL}/quote", params={
-                "symbol": "CL", "apikey": settings.twelvedata_api_key,
+                "symbol": "DXY", "apikey": settings.twelvedata_api_key,
             })
             return SourceStatus.LIVE if resp.status_code == 200 else SourceStatus.DOWN
         except Exception:
             return SourceStatus.DOWN
+
+    def get_mock_data(self, params: dict) -> AdapterResult:
+        """Return mock ticker data for TwelveData instruments."""
+        data_type = params.get("type", "tickers")
+        if data_type == "tickers":
+            return AdapterResult(
+                data=[
+                    {"id": "dxy", "label": "DXY", "price": 104.21, "change": -0.32, "pct": "-0.31%"},
+                ],
+                status=SourceStatus.MOCK,
+                source_name=self.source_name,
+                error_message="TwelveData unavailable — returning mock data",
+            )
+        return super().get_mock_data(params)

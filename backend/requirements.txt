@@ -11,7 +11,7 @@ alembic==1.15.2
 greenlet==3.2.3
 
 # ── Redis / Cache ──
-redis[hiredis]==6.2.0
+redis[hiredis]==5.2.1
 
 # ── Celery / Workers ──
 celery[redis]==5.5.2
@@ -42,3 +42,4 @@ python-dotenv==1.1.0
 orjson==3.10.18
 python-multipart==0.0.20
 websockets==15.0.1
+vaderSentiment==3.3.2  

@@ -1,10 +1,12 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
   ComposedChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import Card from './Card';
+import { useApiData } from '../hooks/useApiData';
+import { fetchCOT } from '../api';
 import { COT_DATA } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 10, fill: '#868E96' };
@@ -28,16 +30,32 @@ const COTTooltip = ({ active, payload, label }) => {
 };
 
 const COTPositioning = memo(function COTPositioning() {
-  const last = COT_DATA[COT_DATA.length - 1];
+  const { data: apiData, source } = useApiData(fetchCOT, { fallback: null, refreshInterval: 300000 });
+
+  const chartData = useMemo(() => {
+    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) {
+      return apiData.data.map(row => ({
+        week: row.week,
+        managedMoney: row.managed_money ?? row.managedMoney ?? 0,
+        producer: row.producer ?? 0,
+        swapDealer: row.swap_dealer ?? row.swapDealer ?? 0,
+        netSpec: row.net_spec ?? row.netSpec ?? 0,
+      }));
+    }
+    return COT_DATA;
+  }, [apiData]);
+
+  const last = chartData[chartData.length - 1];
   return (
     <Card
       title="CFTC COT Positioning"
       badge={`Net Spec: ${last.netSpec > 0 ? '+' : ''}${last.netSpec}k`}
       badgeVariant={last.netSpec > 0 ? 'green' : 'red'}
+      source={source}
     >
       <div className="h-[280px]" style={{ minHeight: 280 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={COT_DATA}>
+          <ComposedChart data={chartData}>
             <CartesianGrid {...GRID_STYLE} />
             <XAxis dataKey="week" tick={AXIS_STYLE} />
             <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}k`} />

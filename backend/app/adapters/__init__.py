@@ -25,7 +25,8 @@ def register_all_adapters():
     registry.register(FinBERTAdapter())
 
     # Configure fallback chains
-    registry.set_fallback_chain("realtime_prices", ["twelvedata", "yahoo"])
+    # realtime_prices: yahoo only (DXY fetched separately via TwelveData in router)
+    registry.set_fallback_chain("realtime_prices", ["yahoo"])
     registry.set_fallback_chain("forward_curves", ["yahoo"])
     registry.set_fallback_chain("intraday_bars", ["twelvedata", "yahoo"])
     registry.set_fallback_chain("fundamentals", ["eia"])

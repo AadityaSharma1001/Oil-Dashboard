@@ -1,10 +1,12 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import {
   ComposedChart, Area, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import Card from './Card';
+import { useApiData } from '../hooks/useApiData';
+import { fetchFiveYearRange } from '../api';
 import { WTI_5YR_RANGE, BRENT_5YR_RANGE } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 9, fill: '#868E96' };
@@ -50,7 +52,7 @@ const Metric = ({ label, value, unit, color }) => (
   </div>
 );
 
-const RangeChart = memo(({ title, data, accentColor, gradId }) => {
+const RangeChart = memo(({ title, data, accentColor, gradId, source }) => {
   const currentWeekData = data.filter(d => d.current != null);
   const lastCurrent = currentWeekData[currentWeekData.length - 1];
   const currentPrice = lastCurrent?.current ?? 0;
@@ -65,6 +67,7 @@ const RangeChart = memo(({ title, data, accentColor, gradId }) => {
     <Card
       title={title}
       badge="52-Week Seasonal"
+      source={source}
       footer={
         <div className="flex items-center justify-center divide-x divide-slate-200 -mx-3.5 -mb-2.5 bg-slate-50">
           <Metric label="Current" value={`$${currentPrice.toFixed(2)}`} unit="" />
@@ -107,10 +110,41 @@ const RangeChart = memo(({ title, data, accentColor, gradId }) => {
 });
 
 const FiveYearRange = memo(function FiveYearRange() {
+  const fetchWti = useCallback(() => fetchFiveYearRange('wti'), []);
+  const fetchBrent = useCallback(() => fetchFiveYearRange('brent'), []);
+  const { data: wtiApi, source: wtiSource } = useApiData(fetchWti, { fallback: null, refreshInterval: 300000 });
+  const { data: brentApi, source: brentSource } = useApiData(fetchBrent, { fallback: null, refreshInterval: 300000 });
+
+  const wtiData = useMemo(() => {
+    if (wtiApi?.data && Array.isArray(wtiApi.data) && wtiApi.data.length > 0) {
+      return wtiApi.data.map(d => ({
+        week: d.day || d.week,
+        high5yr: d.high5yr,
+        low5yr: d.low5yr,
+        median5yr: d.mean5yr ?? d.median5yr,
+        current: d.close ?? d.current ?? d.open,
+      }));
+    }
+    return WTI_5YR_RANGE;
+  }, [wtiApi]);
+
+  const brentData = useMemo(() => {
+    if (brentApi?.data && Array.isArray(brentApi.data) && brentApi.data.length > 0) {
+      return brentApi.data.map(d => ({
+        week: d.day || d.week,
+        high5yr: d.high5yr,
+        low5yr: d.low5yr,
+        median5yr: d.mean5yr ?? d.median5yr,
+        current: d.close ?? d.current ?? d.open,
+      }));
+    }
+    return BRENT_5YR_RANGE;
+  }, [brentApi]);
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-      <RangeChart title="WTI — 5yr Same-Week Range" data={WTI_5YR_RANGE} accentColor="#0D47A1" gradId="wtiRng" />
-      <RangeChart title="Brent — 5yr Same-Week Range" data={BRENT_5YR_RANGE} accentColor="#7B1FA2" gradId="brtRng" />
+      <RangeChart title="WTI — 5yr Same-Week Range" data={wtiData} accentColor="#0D47A1" gradId="wtiRng" source={wtiSource} />
+      <RangeChart title="Brent — 5yr Same-Week Range" data={brentData} accentColor="#7B1FA2" gradId="brtRng" source={brentSource} />
     </div>
   );
 });

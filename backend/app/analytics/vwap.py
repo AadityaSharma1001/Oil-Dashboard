@@ -29,9 +29,10 @@ def compute_vwap(bars: list[dict]) -> list[dict]:
 
         prices.append(price)
 
-        # Running standard deviation (of all prices seen so far)
-        if len(prices) >= 2:
-            std = float(np.std(prices, ddof=1))
+        # 20-period rolling standard deviation for Bollinger Bands
+        window = prices[-20:]
+        if len(window) >= 2:
+            std = float(np.std(window, ddof=1))
         else:
             std = 0.0
 

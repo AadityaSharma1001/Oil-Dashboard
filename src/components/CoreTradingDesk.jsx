@@ -1,4 +1,4 @@
-import React, { memo, useState, useMemo } from 'react';
+import React, { memo, useState, useMemo, useCallback } from 'react';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -6,6 +6,11 @@ import {
 } from 'recharts';
 import Card from './Card';
 import { useLiveChartData, useLiveMultiChartData } from '../hooks/useLiveData';
+import { useApiData } from '../hooks/useApiData';
+import {
+  fetchForwardCurves, fetchCrackSpreads as apiFetchCracks,
+  fetchFundamentalsCards, fetchCovariance, fetchM1M12Heatmap, fetchWtiBrentArb
+} from '../api';
 import {
   FWD_CURVE_DATA, BRENT_FWD_CURVE_DATA,
   M1M12_DATA, M1M12_THRESHOLD,
@@ -51,20 +56,21 @@ const ChartGradient = ({ id, color }) => (
 /* ═══════════════════════ Section Components ═══════════════════ */
 
 const ForwardCurve = memo(() => {
-  const data = useLiveChartData(FWD_CURVE_DATA, 'current', 3000, 0.0003);
+  const fetchWti = useCallback(() => fetchForwardCurves('wti'), []);
+  const { data: apiData, source } = useApiData(fetchWti, { fallback: FWD_CURVE_DATA, refreshInterval: 60000 });
+  const data = Array.isArray(apiData) ? apiData : FWD_CURVE_DATA;
   return (
-    <Card title="WTI Forward Curve" badge="M1–M36 vs 5-Yr Avg">
+    <Card title="WTI Forward Curve" badge="M1–M12" source={source}>
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <ChartGradient id="fwdGrad" color="#0D47A1" />
             <CartesianGrid {...GRID_STYLE} />
-            <XAxis dataKey="month" tick={AXIS_STYLE} interval={5} />
+            <XAxis dataKey="month" tick={AXIS_STYLE} interval={1} />
             <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v}`} domain={['auto', 'auto']} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11 }} />
             <Area name="Current" dataKey="current" stroke="#0D47A1" fill="url(#fwdGrad)" strokeWidth={2} dot={false} />
-            <Line name="5-Yr Avg" dataKey="avg5yr" stroke="#ADB5BD" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -73,20 +79,21 @@ const ForwardCurve = memo(() => {
 });
 
 const BrentForwardCurve = memo(() => {
-  const data = useLiveChartData(BRENT_FWD_CURVE_DATA, 'current', 3000, 0.0003);
+  const fetchBrent = useCallback(() => fetchForwardCurves('brent'), []);
+  const { data: apiData, source } = useApiData(fetchBrent, { fallback: BRENT_FWD_CURVE_DATA, refreshInterval: 60000 });
+  const data = Array.isArray(apiData) ? apiData : BRENT_FWD_CURVE_DATA;
   return (
-    <Card title="Brent Forward Curve" badge="M1–M36 vs 5-Yr Avg">
+    <Card title="Brent Forward Curve" badge="M1–M12" source={source}>
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <ChartGradient id="brentFwdGrad" color="#343A40" />
             <CartesianGrid {...GRID_STYLE} />
-            <XAxis dataKey="month" tick={AXIS_STYLE} interval={5} />
+            <XAxis dataKey="month" tick={AXIS_STYLE} interval={1} />
             <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v}`} domain={['auto', 'auto']} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11 }} />
             <Area name="Current" dataKey="current" stroke="#343A40" fill="url(#brentFwdGrad)" strokeWidth={2} dot={false} />
-            <Line name="5-Yr Avg" dataKey="avg5yr" stroke="#ADB5BD" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -152,20 +159,25 @@ const M1M12Spread = memo(() => {
 /* ── Covariance Matrix ───────────────────────────────────────── */
 const CovMatrix = memo(() => {
   const [hoverCell, setHoverCell] = useState(null);
+  const { data: apiData } = useApiData(fetchCovariance, { fallback: null, refreshInterval: 60000 });
+  
+  const labels = apiData?.data?.labels || COV_LABELS;
+  const values = apiData?.data?.values || COV_VALUES;
+  const highlights = apiData?.data?.highlights || COV_HIGHLIGHT;
 
   return (
     <Card title="EWMA Covariance Matrix" badge="λ = 0.94 · 5-Leg">
       <div className="grid gap-0.5" style={{ gridTemplateColumns: `56px repeat(5, 1fr)` }}>
         <div />
-        {COV_LABELS.map(l => (
-          <div key={l} className={`flex items-center justify-center h-9 text-[10px] font-semibold uppercase tracking-[0.3px] transition-colors ${hoverCell?.c === COV_LABELS.indexOf(l) ? 'text-blue-900' : 'text-slate-500'}`}>{l}</div>
+        {labels.map(l => (
+          <div key={l} className={`flex items-center justify-center h-9 text-[10px] font-semibold uppercase tracking-[0.3px] transition-colors ${hoverCell?.c === labels.indexOf(l) ? 'text-blue-900' : 'text-slate-500'}`}>{l}</div>
         ))}
-        {COV_VALUES.map((row, r) => (
+        {values.map((row, r) => (
           <React.Fragment key={r}>
-            <div className={`flex items-center justify-center h-9 text-[10px] font-semibold uppercase tracking-[0.3px] transition-colors ${hoverCell?.r === r ? 'text-blue-900' : 'text-slate-500'}`}>{COV_LABELS[r]}</div>
+            <div className={`flex items-center justify-center h-9 text-[10px] font-semibold uppercase tracking-[0.3px] transition-colors ${hoverCell?.r === r ? 'text-blue-900' : 'text-slate-500'}`}>{labels[r]}</div>
             {row.map((val, c) => {
               const isDiag = r === c;
-              const isHL = COV_HIGHLIGHT.some(([hr, hc]) => hr === r && hc === c);
+              const isHL = Array.isArray(highlights[r]) && highlights[r][c] === 1;
               const isHovered = hoverCell?.r === r && hoverCell?.c === c;
               const isRowCol = hoverCell && (hoverCell.r === r || hoverCell.c === c);
               return (
@@ -194,8 +206,14 @@ const CovMatrix = memo(() => {
 
 /* ── M1-M12 Heatmap (WTI + Brent) ────────────────────────────── */
 const M1M12Heatmap = memo(() => {
-  const wtiMax = Math.max(...HEATMAP_M1M12_VALUES);
-  const brentMax = Math.max(...BRENT_HEATMAP_M1M12_VALUES);
+  const { data: apiData } = useApiData(fetchM1M12Heatmap, { fallback: null, refreshInterval: 60000 });
+  const wtiValues = apiData?.data?.wti_values || HEATMAP_M1M12_VALUES;
+  const brentValues = apiData?.data?.brent_values || BRENT_HEATMAP_M1M12_VALUES;
+  const labels = apiData?.data?.labels || HEATMAP_M1M12_LABELS;
+  
+  const wtiMax = Math.max(...wtiValues.map(Math.abs));
+  const brentMax = Math.max(...brentValues.map(Math.abs));
+  
   return (
     <Card title="M1-M12 Heatmap" badge="WTI & Brent">
       <div className="flex flex-col gap-3">
@@ -206,14 +224,14 @@ const M1M12Heatmap = memo(() => {
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">WTI</span>
           </div>
           <div className="flex gap-1">
-            {HEATMAP_M1M12_VALUES.map((v, i) => (
+            {wtiValues.map((v, i) => (
               <div
                 key={i}
                 className="flex-1 h-8 rounded flex items-center justify-center text-[9.5px] font-medium hover:scale-110 transition-transform cursor-default"
-                style={{ background: `rgba(0,150,136,${0.08 + (v / wtiMax) * 0.35})`, color: '#00695C' }}
-                title={`${HEATMAP_M1M12_LABELS[i]}: $${v.toFixed(2)}`}
+                style={{ background: `rgba(0,150,136,${0.08 + (Math.abs(v) / (wtiMax || 1)) * 0.35})`, color: '#00695C' }}
+                title={`${labels[i]}: $${v.toFixed(2)}`}
               >
-                ${v.toFixed(2)}
+                {v > 0 ? '+' : ''}{v.toFixed(2)}
               </div>
             ))}
           </div>
@@ -225,21 +243,21 @@ const M1M12Heatmap = memo(() => {
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">Brent</span>
           </div>
           <div className="flex gap-1">
-            {BRENT_HEATMAP_M1M12_VALUES.map((v, i) => (
+            {brentValues.map((v, i) => (
               <div
                 key={i}
                 className="flex-1 h-8 rounded flex items-center justify-center text-[9.5px] font-medium hover:scale-110 transition-transform cursor-default"
-                style={{ background: `rgba(13,71,161,${0.06 + (v / brentMax) * 0.28})`, color: '#0D47A1' }}
-                title={`${HEATMAP_M1M12_LABELS[i]}: $${v.toFixed(2)}`}
+                style={{ background: `rgba(13,71,161,${0.06 + (Math.abs(v) / (brentMax || 1)) * 0.28})`, color: '#0D47A1' }}
+                title={`${labels[i]}: $${v.toFixed(2)}`}
               >
-                ${v.toFixed(2)}
+                {v > 0 ? '+' : ''}{v.toFixed(2)}
               </div>
             ))}
           </div>
         </div>
         {/* Labels */}
         <div className="flex gap-1">
-          {HEATMAP_M1M12_LABELS.map(l => (
+          {labels.map(l => (
             <div key={l} className="flex-1 text-center text-[8px] text-slate-400">{l}</div>
           ))}
         </div>
@@ -249,7 +267,17 @@ const M1M12Heatmap = memo(() => {
 });
 
 /* ── PCA Decomposition (WTI + Brent) ─────────────────────────── */
-const PCADecomposition = memo(() => (
+const PCADecomposition = memo(() => {
+  const fetchWtiPca = useCallback(() => fetchPCA('wti'), []);
+  const fetchBrentPca = useCallback(() => fetchPCA('brent'), []);
+  
+  const { data: wtiApiData } = useApiData(fetchWtiPca, { fallback: null, refreshInterval: 60000 });
+  const { data: brentApiData } = useApiData(fetchBrentPca, { fallback: null, refreshInterval: 60000 });
+  
+  const wtiData = wtiApiData?.components || PCA_DATA;
+  const brentData = brentApiData?.components || BRENT_PCA_DATA;
+
+  return (
   <Card title="PCA Decomposition" badge="WTI & Brent — 3 Components">
     <div className="grid grid-cols-2 gap-5">
       {/* WTI Column */}
@@ -259,7 +287,7 @@ const PCADecomposition = memo(() => (
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">WTI</span>
         </div>
         <div className="flex flex-col gap-3.5">
-          {PCA_DATA.map((pc, idx) => (
+          {wtiData.map((pc, idx) => (
             <div key={idx}>
               <div className="flex justify-between items-baseline mb-1">
                 <span className="text-[11px] font-semibold text-slate-600">{pc.label}</span>
@@ -292,7 +320,7 @@ const PCADecomposition = memo(() => (
           <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">Brent</span>
         </div>
         <div className="flex flex-col gap-3.5">
-          {BRENT_PCA_DATA.map((pc, idx) => (
+          {brentData.map((pc, idx) => (
             <div key={idx}>
               <div className="flex justify-between items-baseline mb-1">
                 <span className="text-[11px] font-semibold text-slate-600">{pc.label}</span>
@@ -320,11 +348,18 @@ const PCADecomposition = memo(() => (
       </div>
     </div>
   </Card>
-));
+  );
+});
 
 /* ── WTI-Brent Arb ───────────────────────────────────────────── */
 const ArbChart = memo(() => {
-  const data = useLiveChartData(ARB_DATA, 'spread', 3000, 0.002);
+  const { data: apiData } = useApiData(fetchWtiBrentArb, { fallback: null, refreshInterval: 60000 });
+  const data = apiData?.data?.data || ARB_DATA;
+  const current = apiData?.data?.current || -3.85;
+  const mean = apiData?.data?.mean || ARB_MEAN;
+  const std = apiData?.data?.std || ARB_STD;
+  const zScore = apiData?.data?.z_score || -0.8;
+  
   return (
     <Card
       title="WTI-Brent Arb"
@@ -333,9 +368,9 @@ const ArbChart = memo(() => {
         <table className="w-full text-[11.5px]">
           <thead><tr className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]"><th className="py-1 px-2">Metric</th><th className="py-1 px-2">Value</th><th className="py-1 px-2">Z</th></tr></thead>
           <tbody className="tabular-nums">
-            <tr className="border-t border-slate-100"><td className="py-1 px-2">Current Spread</td><td className="py-1 px-2">–$3.85</td><td className="py-1 px-2 text-red-700 font-medium">–0.8σ</td></tr>
-            <tr className="border-t border-slate-100"><td className="py-1 px-2">30d Mean</td><td className="py-1 px-2">–$3.20</td><td className="py-1 px-2 text-slate-400">—</td></tr>
-            <tr className="border-t border-slate-100"><td className="py-1 px-2">30d Std</td><td className="py-1 px-2">$0.81</td><td className="py-1 px-2 text-slate-400">—</td></tr>
+            <tr className="border-t border-slate-100"><td className="py-1 px-2">Current Spread</td><td className="py-1 px-2">{current < 0 ? '–' : ''}${Math.abs(current).toFixed(2)}</td><td className={`py-1 px-2 font-medium ${Math.abs(zScore) > 1.5 ? 'text-red-700' : 'text-slate-700'}`}>{zScore > 0 ? '+' : ''}{zScore.toFixed(1)}σ</td></tr>
+            <tr className="border-t border-slate-100"><td className="py-1 px-2">30d Mean</td><td className="py-1 px-2">{mean < 0 ? '–' : ''}${Math.abs(mean).toFixed(2)}</td><td className="py-1 px-2 text-slate-400">—</td></tr>
+            <tr className="border-t border-slate-100"><td className="py-1 px-2">30d Std</td><td className="py-1 px-2">${std.toFixed(2)}</td><td className="py-1 px-2 text-slate-400">—</td></tr>
           </tbody>
         </table>
       }
@@ -345,11 +380,11 @@ const ArbChart = memo(() => {
           <LineChart data={data}>
             <CartesianGrid {...GRID_STYLE} />
             <XAxis dataKey="day" tick={AXIS_STYLE} interval={5} />
-            <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v.toFixed(2)}`} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v.toFixed(2)}`} domain={['auto', 'auto']} />
             <Tooltip content={<CustomTooltip />} />
-            <ReferenceLine y={ARB_MEAN} stroke="#ADB5BD" strokeDasharray="3 3" />
-            <ReferenceLine y={ARB_MEAN + ARB_STD} stroke="#DEE2E6" strokeDasharray="4 3" />
-            <ReferenceLine y={ARB_MEAN - ARB_STD} stroke="#DEE2E6" strokeDasharray="4 3" />
+            <ReferenceLine y={mean} stroke="#ADB5BD" strokeDasharray="3 3" />
+            <ReferenceLine y={mean + std} stroke="#DEE2E6" strokeDasharray="4 3" />
+            <ReferenceLine y={mean - std} stroke="#DEE2E6" strokeDasharray="4 3" />
             <Line name="Spread" dataKey="spread" stroke="#0D47A1" strokeWidth={1.5} dot={false} />
           </LineChart>
         </ResponsiveContainer>
@@ -360,7 +395,7 @@ const ArbChart = memo(() => {
 
 /* ── Differentials ───────────────────────────────────────────── */
 const Differentials = memo(() => (
-  <Card title="Physical Grade Differentials" badge="$/bbl vs WTI">
+  <Card title="Physical Grade Differentials" badge="$/bbl vs WTI" source="mock">
     <div className="h-[220px]">
       <ResponsiveContainer>
         <BarChart data={DIFF_DATA} layout="vertical">
@@ -409,14 +444,17 @@ const CrackTooltip = ({ active, payload, label }) => {
 };
 
 const CrackSpreads = memo(() => {
+  const { data: apiData, provenance } = useApiData(apiFetchCracks, { fallback: null, refreshInterval: 60000 });
+  const data = apiData?.data || CRACK_DATA;
+  
   // Enrich data with deviation
-  const enriched = CRACK_DATA.map(d => ({
+  const enriched = data.map(d => ({
     ...d,
     deviation: +(d.current - d.avg5yr).toFixed(1),
   }));
 
   return (
-    <Card title="Major Crack Spreads" badge="Current vs 5-Yr Avg · $/bbl">
+    <Card title="Major Crack Spreads" badge="Current vs 5-Yr Avg · $/bbl" source={provenance?.status || 'mock'}>
       <div className="h-[300px]" style={{ minHeight: 300 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={enriched} layout="vertical" margin={{ top: 5, right: 60, left: 5, bottom: 5 }}>

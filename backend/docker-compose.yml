@@ -5,6 +5,10 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://oil_user:${DB_PASSWORD:-oil_pass}@db:5432/oil_desk
+      - FINBERT_SERVICE_URL=http://finbert-service:8001
     depends_on:
       db:
         condition: service_healthy
@@ -18,23 +22,23 @@ services:
       start_period: 15s
     restart: unless-stopped
 
-  # ── FinBERT Sentiment Microservice ──
-  finbert-service:
-    build:
-      context: ./finbert_service
-    ports:
-      - "8001:8001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G
+  # ── FinBERT Sentiment Microservice (Disabled temporarily) ──
+  # finbert-service:
+  #   build:
+  #     context: ./finbert_service
+  #   ports:
+  #     - "8001:8001"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 600s
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 4G
 
   # ── PostgreSQL ──
   db:
@@ -72,12 +76,14 @@ services:
     build: .
     command: celery -A app.workers.celery_app worker -l info -c 4
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://oil_user:${DB_PASSWORD:-oil_pass}@db:5432/oil_desk
+      - FINBERT_SERVICE_URL=http://finbert-service:8001
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      finbert-service:
         condition: service_healthy
     restart: unless-stopped
 
@@ -86,6 +92,10 @@ services:
     build: .
     command: celery -A app.workers.celery_app beat -l info
     env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql+asyncpg://oil_user:${DB_PASSWORD:-oil_pass}@db:5432/oil_desk
+      - FINBERT_SERVICE_URL=http://finbert-service:8001
     depends_on:
       redis:
         condition: service_healthy

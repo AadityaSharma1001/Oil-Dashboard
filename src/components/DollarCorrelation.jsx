@@ -1,10 +1,12 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import Card from './Card';
 import { useLiveChartData } from '../hooks/useLiveData';
+import { useApiData } from '../hooks/useApiData';
+import { fetchDollarCorrelation } from '../api';
 import { DOLLAR_CORR_DATA } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 10, fill: '#868E96' };
@@ -27,7 +29,12 @@ const CorrTooltip = ({ active, payload, label }) => {
 };
 
 const DollarCorrelation = memo(function DollarCorrelation() {
-  const data = useLiveChartData(DOLLAR_CORR_DATA, 'correlation', 4000, 0.005);
+  const { data: apiData, source } = useApiData(fetchDollarCorrelation, { fallback: null, refreshInterval: 300000 });
+  const corrData = useMemo(() => {
+    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) return apiData.data;
+    return DOLLAR_CORR_DATA;
+  }, [apiData]);
+  const data = corrData;
   const last = data[data.length - 1]?.correlation ?? 0;
 
   return (
@@ -35,6 +42,7 @@ const DollarCorrelation = memo(function DollarCorrelation() {
       title="WTI · Dollar Correlation"
       badge={`ρ = ${last.toFixed(3)}`}
       badgeVariant={last < -0.4 ? 'red' : 'default'}
+      source={source}
     >
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">

@@ -2,9 +2,12 @@ import React, { useEffect, useRef, memo } from 'react';
 
 const TradingViewWidget = memo(function TradingViewWidget({ symbol, title }) {
   const containerRef = useRef(null);
+  const isMountedRef = useRef(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || isMountedRef.current) return;
+    isMountedRef.current = true;
+
     containerRef.current.innerHTML = '';
 
     const widgetDiv = document.createElement('div');

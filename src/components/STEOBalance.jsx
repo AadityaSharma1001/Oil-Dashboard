@@ -1,10 +1,12 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
-  ComposedChart, Line, Bar,
+  ComposedChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import Card from './Card';
+import { useApiData } from '../hooks/useApiData';
+import { fetchSTEO } from '../api';
 import { STEO_DATA } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 10, fill: '#868E96' };
@@ -12,15 +14,14 @@ const GRID_STYLE = { stroke: 'rgba(0,0,0,0.04)' };
 
 const STEOTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
   return (
-    <div className="bg-slate-900 text-white text-[11px] px-2.5 py-1.5 rounded-md shadow-lg min-w-[170px]">
-      <div className="font-semibold text-slate-300 mb-1 border-b border-slate-700 pb-1">{label} 2026</div>
+    <div className="bg-slate-900 text-white text-[11px] px-2.5 py-1.5 rounded-md shadow-lg min-w-[160px]">
+      <div className="font-semibold text-slate-300 mb-1 border-b border-slate-700 pb-1">{label}</div>
       {payload.map((p, i) => (
         <div key={i} className="flex justify-between gap-3">
           <span className="text-slate-400">{p.name}</span>
           <span className="font-semibold tabular-nums" style={{ color: p.color }}>
-            {typeof p.value === 'number' ? p.value.toFixed(1) : p.value} mb/d
+            {p.value?.toFixed(1)} mb/d
           </span>
         </div>
       ))}
@@ -29,46 +30,43 @@ const STEOTooltip = ({ active, payload, label }) => {
 };
 
 const STEOBalance = memo(function STEOBalance() {
+  const { data: apiData, source } = useApiData(fetchSTEO, { fallback: null, refreshInterval: 300000 });
+
+  const chartData = useMemo(() => {
+    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) {
+      return apiData.data;
+    }
+    return STEO_DATA;
+  }, [apiData]);
+
   return (
-    <Card title="Global Oil Balance — EIA STEO" badge="2026 Forecast (mb/d)">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-        {/* Supply vs Demand */}
-        <div>
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-2">Supply vs Demand</div>
-          <div className="h-[240px]" style={{ minHeight: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={STEO_DATA}>
-                <CartesianGrid {...GRID_STYLE} />
-                <XAxis dataKey="month" tick={AXIS_STYLE} />
-                <YAxis tick={AXIS_STYLE} domain={[99.5, 105]} tickFormatter={v => `${v}`} />
-                <Tooltip content={<STEOTooltip />} />
-                <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 10 }} />
-                <Line dataKey="supply" name="World Supply" stroke="#0D47A1" strokeWidth={2} dot={{ r: 2, fill: '#0D47A1' }} />
-                <Line dataKey="demand" name="World Demand" stroke="#E53935" strokeWidth={2} dot={{ r: 2, fill: '#E53935' }} />
-                <ReferenceLine y={102} stroke="#ADB5BD" strokeDasharray="4 3" strokeOpacity={0.4} />
-                <Bar dataKey="balance" name="Implied Balance" fill="#4CAF50" fillOpacity={0.5} radius={[2, 2, 0, 0]} barSize={16} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-        {/* OPEC vs Non-OPEC breakdown */}
-        <div>
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-2">Supply Breakdown</div>
-          <div className="h-[240px]" style={{ minHeight: 240 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={STEO_DATA}>
-                <CartesianGrid {...GRID_STYLE} />
-                <XAxis dataKey="month" tick={AXIS_STYLE} />
-                <YAxis tick={AXIS_STYLE} domain={[0, 'auto']} tickFormatter={v => `${v}`} />
-                <Tooltip content={<STEOTooltip />} />
-                <Legend iconSize={10} wrapperStyle={{ fontSize: 10 }} />
-                <Bar dataKey="opec" name="OPEC" stackId="supply" fill="#0D47A1" fillOpacity={0.7} barSize={20} radius={[0, 0, 0, 0]} />
-                <Bar dataKey="nonOpec" name="Non-OPEC" stackId="supply" fill="#64B5F6" fillOpacity={0.6} barSize={20} radius={[2, 2, 0, 0]} />
-                <Line dataKey="demand" name="Demand" stroke="#E53935" strokeWidth={2} strokeDasharray="6 3" dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+    <Card title="EIA STEO — Global Oil Balance" badge="Supply / Demand · mb/d" source={source}>
+      <div className="h-[300px]" style={{ minHeight: 300 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData}>
+            <defs>
+              <linearGradient id="balGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4CAF50" stopOpacity={0.15} />
+                <stop offset="100%" stopColor="#E53935" stopOpacity={0.15} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid {...GRID_STYLE} />
+            <XAxis dataKey="month" tick={AXIS_STYLE} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}`} />
+            <Tooltip content={<STEOTooltip />} />
+            <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 10 }} />
+            <ReferenceLine y={0} stroke="#868E96" strokeDasharray="4 3" />
+            <Bar dataKey="balance" name="Balance" fill="url(#balGrad)" radius={[3, 3, 0, 0]} barSize={20}>
+              {chartData.map((entry, idx) => (
+                <React.Fragment key={idx} />
+              ))}
+            </Bar>
+            <Line dataKey="supply" name="Supply" stroke="#0D47A1" strokeWidth={2} dot={{ r: 2, fill: '#0D47A1' }} />
+            <Line dataKey="demand" name="Demand" stroke="#E53935" strokeWidth={2} dot={{ r: 2, fill: '#E53935' }} />
+            <Line dataKey="opec" name="OPEC" stroke="#FFB300" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
+            <Line dataKey="nonOpec" name="Non-OPEC" stroke="#00BCD4" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     </Card>
   );
