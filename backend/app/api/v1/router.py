@@ -1223,22 +1223,78 @@ async def get_fleet_utilization():
 @router.get("/steo/balance")
 async def get_steo():
     """EIA STEO supply/demand balance."""
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    result = await registry.fetch_with_fallback("fundamentals", {"type": "steo"})
+    
+    if result.status == DataStatus.MOCK:
+        # Fallback to mock data if API fails
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        data = []
+        import numpy as np
+        np.random.seed(44)
+        for m in months:
+            supply = round(101.5 + np.random.randn() * 1.2, 1)
+            demand = round(102.0 + np.random.randn() * 1.0, 1)
+            opec = round(supply * 0.35, 1)
+            data.append({
+                "month": m, "supply": supply, "demand": demand,
+                "balance": round(supply - demand, 1),
+                "opec": opec, "nonOpec": round(supply - opec, 1),
+            })
+        return APIResponse(data={"data": data}, provenance=_provenance(result))
+
+    # Parse live data
+    # result.data is a list of dicts: [{'series': 'supply', 'data': [{'period': '2024-05', 'value': 101.5}, ...]}, ...]
+    series_map = {item["series"]: item["data"] for item in result.data}
+    
+    # We need to pivot this into a list of dicts by period.
+    # Get all periods from 'supply'
+    if "supply" not in series_map or not series_map["supply"]:
+        return APIResponse(data={"data": []}, provenance=_provenance(result))
+        
+    # Get the 12 most recent periods (which are usually the future projections, let's take the first 12 since they are sorted desc)
+    # Actually, we want chronological order, so take first 12 and reverse
+    periods = [x["period"] for x in series_map["supply"][:12]]
+    periods.reverse()
+    
     data = []
-    import numpy as np
-    np.random.seed(44)
-    for m in months:
-        supply = round(101.5 + np.random.randn() * 1.2, 1)
-        demand = round(102.0 + np.random.randn() * 1.0, 1)
-        opec = round(supply * 0.35, 1)
+    for p in periods:
+        # Helper to find value for a period in a series
+        def get_val(s_name):
+            if s_name not in series_map: return 0.0
+            for row in series_map[s_name]:
+                if row["period"] == p:
+                    return round(float(row.get("value", 0.0)), 1)
+            return 0.0
+            
+        supply = get_val("supply")
+        demand = get_val("demand")
+        opec = get_val("opec")
+        non_opec = get_val("non_opec")
+        
+        # If non-OPEC is 0 (missing series), calculate it
+        if non_opec == 0.0 and supply > 0:
+            non_opec = round(supply - opec, 1)
+            
+        # Format month (e.g. "2024-05" -> "May 24")
+        try:
+            yr, mo = p.split("-")
+            month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            m_str = f"{month_names[int(mo)-1]} {yr[-2:]}"
+        except:
+            m_str = p
+            
         data.append({
-            "month": m, "supply": supply, "demand": demand,
+            "month": m_str,
+            "supply": supply,
+            "demand": demand,
             "balance": round(supply - demand, 1),
-            "opec": opec, "nonOpec": round(supply - opec, 1),
+            "opec": opec,
+            "nonOpec": non_opec
         })
+        
     return APIResponse(
         data={"data": data},
-        provenance=DataProvenance(status=DataStatus.MOCK, source="eia", fetched_at=datetime.utcnow()),
+        provenance=_provenance(result)
     )
 
 
