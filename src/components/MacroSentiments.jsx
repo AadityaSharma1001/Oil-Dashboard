@@ -33,49 +33,21 @@ const CustomTooltip = ({ active, payload, label, prefix = '$' }) => {
   );
 };
 
-/* ═══════════════════════ Seasonality Chart ═══════════════════ */
-const SeasonalityChart = memo(() => {
-  const fetchSeas = useCallback(() => fetchSeasonality('wti'), []);
-  const { data: apiData, source } = useApiData(fetchSeas, { fallback: null, refreshInterval: 300000 });
-  const seasonData = useMemo(() => {
-    if (apiData?.data && Array.isArray(apiData.data) && apiData.data.length > 0) return apiData.data;
-    return SEASONALITY_DATA;
-  }, [apiData]);
-  const data = useLiveChartData(seasonData, 'current', 3000, 0.0004);
-  return (
-    <Card title="Current Year vs Historical Averages" source={source}
-      badge={
-        <div className="flex gap-3">
-          <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-4 h-0.5 bg-blue-900 inline-block" /> 2026 Actual</span>
-          <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-4 h-0.5 bg-slate-400 inline-block border-dashed border-t" /> 5-Yr Avg</span>
-          <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="w-4 h-0.5 bg-slate-300 inline-block" style={{ borderTop: '1px dotted #CED4DA' }} /> 10-Yr Avg</span>
-        </div>
-      }
-    >
-      <div className="h-[300px]" style={{ minHeight: 300 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid {...GRID_STYLE} />
-            <XAxis dataKey="week" tick={AXIS_STYLE} interval={3} />
-            <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v}`} domain={['auto', 'auto']} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11 }} />
-            <Line name="2026 Actual" dataKey="current" stroke="#0D47A1" strokeWidth={2.5} dot={false} connectNulls={false} />
-            <Line name="5-Yr Avg" dataKey="avg5yr" stroke="#ADB5BD" strokeWidth={1.5} strokeDasharray="8 4" dot={false} />
-            <Line name="10-Yr Avg" dataKey="avg10yr" stroke="#CED4DA" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </Card>
-  );
-});
+/* ═══════════════════════ Seasonality Chart Removed ═══════════════════ */
 
 /* ═══════════════════════ Seasonal Heatmap ════════════════════ */
-const SeasonalHeatmap = memo(() => {
+const SeasonalHeatmap = memo(({ commodity, setCommodity }) => {
   const [hoverCell, setHoverCell] = useState(null);
-  const allVals = useMemo(() => HEATMAP_RETURNS.flat().filter(v => v !== null), []);
-  const min = Math.min(...allVals);
-  const max = Math.max(...allVals);
+  
+  const fetchMap = useCallback(() => fetchHeatmap(commodity), [commodity]);
+  const { data: apiData, source } = useApiData(fetchMap, { refreshInterval: 600000 });
+  
+  const heatmapYears = apiData?.years || HEATMAP_YEARS;
+  const heatmapReturns = apiData?.returns || HEATMAP_RETURNS;
+
+  const allVals = useMemo(() => heatmapReturns.flat().filter(v => v !== null), [heatmapReturns]);
+  const min = Math.min(...allVals, -10);
+  const max = Math.max(...allVals, 10);
 
   const heatColor = (val) => {
     if (val === null) return { bg: '#F8F9FA', text: '#ADB5BD' };
@@ -91,7 +63,29 @@ const SeasonalHeatmap = memo(() => {
   };
 
   return (
-    <Card title="Monthly % Returns" badge="Last 5 Years">
+    <Card 
+      title={
+        <div className="flex items-center gap-3">
+          <span>Monthly % Returns</span>
+          <div className="flex bg-slate-100 rounded p-0.5">
+            <button
+              onClick={() => setCommodity('wti')}
+              className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded transition-colors ${commodity === 'wti' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              WTI
+            </button>
+            <button
+              onClick={() => setCommodity('brent')}
+              className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded transition-colors ${commodity === 'brent' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Brent
+            </button>
+          </div>
+        </div>
+      }
+      badge="Last 5 Years" 
+      source={source}
+    >
       <div className="overflow-x-auto">
         <table className="w-full border-separate" style={{ borderSpacing: '3px' }}>
           <thead>
@@ -103,10 +97,10 @@ const SeasonalHeatmap = memo(() => {
             </tr>
           </thead>
           <tbody>
-            {HEATMAP_YEARS.map((yr, ri) => (
+            {heatmapYears.map((yr, ri) => (
               <tr key={yr}>
                 <td className={`text-[11px] font-semibold text-right pr-2.5 transition-colors ${hoverCell?.r === ri ? 'text-blue-900' : 'text-slate-500'}`}>{yr}</td>
-                {HEATMAP_RETURNS[ri].map((val, ci) => {
+                {heatmapReturns[ri].map((val, ci) => {
                   const c = heatColor(val);
                   const isHovered = hoverCell?.r === ri && hoverCell?.c === ci;
                   const isRowCol = hoverCell && (hoverCell.r === ri || hoverCell.c === ci);
@@ -135,8 +129,11 @@ const SeasonalHeatmap = memo(() => {
 });
 
 /* ── Seasonal Metrics Sidebar ────────────────────────────────── */
-const SeasonalMetricsSidebar = memo(() => {
-  const d = SEASONAL_METRICS;
+const SeasonalMetricsSidebar = memo(({ commodity }) => {
+  const fetchMet = useCallback(() => fetchWeeklyMetrics(commodity), [commodity]);
+  const { data: apiData } = useApiData(fetchMet, { refreshInterval: 600000 });
+  const d = apiData || SEASONAL_METRICS;
+  
   return (
     <Card title="Weekly Metrics">
       <div className="flex flex-col gap-3">
@@ -267,18 +264,15 @@ const SectionTitle = ({ children }) => (
 );
 
 const MacroSentiments = memo(function MacroSentiments() {
+  const [commodity, setCommodity] = useState('wti');
+
   return (
     <div className="space-y-5 animate-fadeIn">
       <section>
-        <SectionTitle>Seasonality Timeline</SectionTitle>
-        <SeasonalityChart />
-      </section>
-
-      <section>
         <SectionTitle>Seasonal Heatmap & Metrics</SectionTitle>
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-3.5">
-          <SeasonalHeatmap />
-          <SeasonalMetricsSidebar />
+          <SeasonalHeatmap commodity={commodity} setCommodity={setCommodity} />
+          <SeasonalMetricsSidebar commodity={commodity} />
         </div>
       </section>
 

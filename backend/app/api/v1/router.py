@@ -1382,37 +1382,138 @@ async def get_seasonality(commodity: str):
 @router.get("/macro/heatmap/{commodity}")
 async def get_heatmap(commodity: str):
     """Monthly returns heatmap."""
-    import numpy as np
-    np.random.seed(55)
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    years = [2022, 2023, 2024, 2025, 2026]
+    symbol = "CL=F" if commodity.lower() == "wti" else "BZ=F"
+    res = await registry.fetch_with_fallback("historical", {
+        "type": "historical", 
+        "symbol": symbol, 
+        "period": "6y", 
+        "interval": "1d"
+    })
+    
+    if res.status == DataStatus.MOCK or not res.data:
+        import numpy as np
+        np.random.seed(55)
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        years = [2022, 2023, 2024, 2025, 2026]
+        returns = []
+        for y in years:
+            row = [round(np.random.randn() * 5, 1) for _ in range(12)]
+            if y == 2026:
+                row = row[:5] + [None] * 7
+            returns.append(row)
+        return APIResponse(
+            data={"months": months, "years": years, "returns": returns},
+            provenance=_provenance(res)
+        )
+
+    # Process 1d data into monthly returns matrix
+    import pandas as pd
+    df = pd.DataFrame(res.data)
+    df["date"] = pd.to_datetime(df["date"])
+    df.set_index("date", inplace=True)
+    
+    # Resample to month-end close to avoid yfinance 1mo bugs
+    monthly = df["close"].resample("M").last()
+    
+    # Calculate percentage change month-over-month
+    pct_change = monthly.pct_change() * 100
+    
+    monthly_df = pd.DataFrame({"pct_change": pct_change})
+    monthly_df["year"] = monthly_df.index.year
+    monthly_df["month"] = monthly_df.index.month
+    
+    # Get last 5 full years + current year
+    current_year = datetime.now().year
+    years = list(range(current_year - 4, current_year + 1))
+    
     returns = []
     for y in years:
-        row = [round(np.random.randn() * 5, 1) for _ in range(12)]
-        if y == 2026:
-            row = row[:5] + [None] * 7
+        row = []
+        for m in range(1, 13):
+            val = monthly_df[(monthly_df["year"] == y) & (monthly_df["month"] == m)]
+            if not val.empty and pd.notna(val.iloc[0]["pct_change"]):
+                change = round(float(val.iloc[0]["pct_change"]), 1)
+                # Cap the outliers to prevent frontend color scale from skewing completely
+                if change > 25: change = 25.0
+                if change < -25: change = -25.0
+                row.append(change)
+            else:
+                row.append(None)
         returns.append(row)
+
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     return APIResponse(
         data={"months": months, "years": years, "returns": returns},
-        provenance=DataProvenance(status=DataStatus.MOCK, source="computed", fetched_at=datetime.utcnow()),
+        provenance=_provenance(res)
     )
 
 
 @router.get("/macro/weekly-metrics")
-async def get_weekly_metrics():
+async def get_weekly_metrics(commodity: str = "wti"):
     """Weekly performance metrics vs seasonal norms."""
+    symbol = "CL=F" if commodity.lower() == "wti" else "BZ=F"
+    res = await registry.fetch_with_fallback("historical", {
+        "type": "historical",
+        "symbol": symbol, 
+        "period": "20y", 
+        "interval": "1wk"
+    })
+    
+    if res.status == DataStatus.MOCK or not res.data:
+        data = {
+            "current_week": 22,
+            "current_perf": "+2.1%",
+            "historical_median": "+0.8%",
+            "deviation": "+1.3σ",
+            "banner": "bullish",
+            "banner_text": "Current week trading 1.3σ above seasonal median. Historical week 22 is typically positive (+0.8%). Driving season demand typically supports Q2 prices.",
+        }
+        return APIResponse(data=data, provenance=_provenance(res))
+
+    import pandas as pd
+    import numpy as np
+    
+    df = pd.DataFrame(res.data)
+    df["date"] = pd.to_datetime(df["date"])
+    df.set_index("date", inplace=True)
+    
+    df["pct_change"] = df["close"].pct_change() * 100
+    df["week"] = df.index.isocalendar().week
+    
+    current_date = df.index[-1]
+    current_week = int(current_date.isocalendar().week)
+    
+    # Calculate current performance
+    current_perf = float(df.iloc[-1]["pct_change"]) if not pd.isna(df.iloc[-1]["pct_change"]) else 0.0
+    
+    # Calculate historical median for this specific week over all previous years
+    historical_week_data = df[(df["week"] == current_week) & (df.index.year < current_date.year)]
+    if not historical_week_data.empty:
+        hist_median = float(historical_week_data["pct_change"].median())
+        hist_std = float(historical_week_data["pct_change"].std())
+    else:
+        hist_median = 0.0
+        hist_std = 1.0
+        
+    hist_std = hist_std if pd.notna(hist_std) and hist_std != 0 else 1.0
+    
+    deviation = (current_perf - hist_median) / hist_std
+    
+    banner = "bullish" if deviation > 0 else "bearish"
+    dir_text = "above" if deviation > 0 else "below"
+    
+    banner_text = f"Current week trading {abs(deviation):.1f}σ {dir_text} seasonal median. Historical week {current_week} typically yields {hist_median:+.1f}%."
+    
     data = {
-        "current_week": 22,
-        "current_perf": "+2.1%",
-        "historical_median": "+0.8%",
-        "deviation": "+1.3σ",
-        "banner": "bullish",
-        "banner_text": "Current week trading 1.3σ above seasonal median. Historical week 22 is typically positive (+0.8%). Driving season demand typically supports Q2 prices.",
+        "currentWeek": current_week,
+        "currentPerf": f"{current_perf:+.1f}%",
+        "historicalMedian": f"{hist_median:+.1f}%",
+        "deviation": f"{deviation:+.1f}σ",
+        "banner": banner,
+        "bannerText": banner_text,
     }
-    return APIResponse(
-        data=data,
-        provenance=DataProvenance(status=DataStatus.MOCK, source="computed", fetched_at=datetime.utcnow()),
-    )
+    
+    return APIResponse(data=data, provenance=_provenance(res))
 
 
 # ════════════════════════════════════════════════════════════════════

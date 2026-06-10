@@ -197,8 +197,8 @@ export async function fetchHeatmap(commodity = 'wti') {
   return apiFetch(`/macro/heatmap/${commodity}`);
 }
 
-export async function fetchWeeklyMetrics() {
-  return apiFetch('/macro/weekly-metrics');
+export async function fetchWeeklyMetrics(commodity = 'wti') {
+  return apiFetch(`/macro/weekly-metrics?commodity=${commodity}`);
 }
 
 // ═══════════════════════════════════════════════════════════════

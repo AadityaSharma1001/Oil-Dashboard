@@ -38,6 +38,7 @@ def register_all_adapters():
     registry.set_fallback_chain("sentiment", ["finbert"])
     registry.set_fallback_chain("shipping_data", ["shipping"])
     registry.set_fallback_chain("web_scraper", ["web_scraper"])
+    registry.set_fallback_chain("historical", ["yahoo"])
 
 
 __all__ = [
