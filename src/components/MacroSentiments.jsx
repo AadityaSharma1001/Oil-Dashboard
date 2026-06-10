@@ -11,7 +11,7 @@ import { fetchSeasonality, fetchHeatmap, fetchWeeklyMetrics, fetchSentiment, fet
 import {
   SEASONALITY_DATA, HEATMAP_MONTHS, HEATMAP_YEARS, HEATMAP_RETURNS,
   SEASONAL_METRICS, INITIAL_SENTIMENT_SCORE, SENTIMENT_TREND_DATA,
-  NEWS_ITEMS, KEYWORD_DATA,
+  NEWS_ITEMS,
 } from '../data/mockData';
 
 const AXIS_STYLE = { fontSize: 10, fill: '#868E96' };
@@ -164,13 +164,22 @@ const SeasonalMetricsSidebar = memo(({ commodity }) => {
 
 /* ═══════════════════════ Sentiment Gauge ═════════════════════ */
 const SentimentPanel = memo(() => {
-  const [score, flash] = useLiveSentiment(INITIAL_SENTIMENT_SCORE, 4000);
+  const fetchFn = useCallback(() => fetchSentiment(), []);
+  const { data: apiData, source } = useApiData(fetchFn, { refreshInterval: 60000 });
+  
+  // Convert compound (-1 to 1) to score (-100 to 100)
+  const compound = apiData?.overall_compound || 0;
+  const score = Math.round(compound * 100);
   const pct = ((score + 100) / 200) * 100;
-  const label = score > 50 ? 'Bullish' : score > 15 ? 'Slightly Bullish' : score > -15 ? 'Neutral' : score > -50 ? 'Slightly Bearish' : 'Bearish';
+  
+  const label = apiData?.overall_bias ? 
+    apiData.overall_bias.charAt(0).toUpperCase() + apiData.overall_bias.slice(1) 
+    : (score > 50 ? 'Bullish' : score > 15 ? 'Slightly Bullish' : score > -15 ? 'Neutral' : score > -50 ? 'Slightly Bearish' : 'Bearish');
+    
   const scoreColor = score >= 0 ? 'text-emerald-700' : 'text-red-700';
 
   return (
-    <Card title="Aggregate Sentiment" badge="Slightly Bullish" badgeVariant="blue">
+    <Card title="Aggregate Sentiment" badge="Live Analysis" badgeVariant="blue" source={source}>
       <div className="mb-4">
         <div className="relative h-7 rounded-md overflow-hidden" style={{ background: 'linear-gradient(to right, rgba(229,57,53,0.1), #F8F9FA 40%, #F8F9FA 60%, rgba(76,175,80,0.1))' }}>
           <div className="absolute top-[-2px] w-[3px] h-[30px] bg-slate-900 rounded transition-all duration-600" style={{ left: `calc(${pct}% - 1.5px)` }} />
@@ -179,10 +188,8 @@ const SentimentPanel = memo(() => {
           <span>-100 Bearish</span><span>Neutral</span><span>+100 Bullish</span>
         </div>
         <div className="text-center mt-2">
-          <div className={`text-2xl font-bold tabular-nums transition-colors duration-500 ${
-            flash === 'up' ? 'text-emerald-500' : flash === 'down' ? 'text-red-500' : scoreColor
-          }`}>
-            {score >= 0 ? '+' : ''}{score}
+          <div className={`text-2xl font-bold tabular-nums transition-colors duration-500 ${scoreColor}`}>
+            {score > 0 ? '+' : ''}{score}
           </div>
           <div className="text-[11px] text-slate-500 font-medium">{label}</div>
         </div>
@@ -215,47 +222,47 @@ const CATEGORY_CLASSES = {
   Macro: 'bg-purple-50 text-purple-700',
 };
 
-const NewsStream = memo(() => (
-  <Card title="News Stream" badge="Simulated Headlines">
-    <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto scrollbar-hide">
-      {NEWS_ITEMS.map(n => (
-        <div key={n.id} className="flex items-start gap-2.5 px-2 py-2.5 rounded hover:bg-slate-50 hover:translate-x-1 hover:shadow transition-all duration-200 cursor-default group">
-          <span className="text-[10px] text-slate-400 font-medium w-9 shrink-0 pt-0.5 tabular-nums">{n.time}</span>
-          <div className="flex-1">
-            <div className="text-[12px] font-medium text-slate-700 leading-snug mb-1 group-hover:text-slate-900 transition-colors">{n.headline}</div>
-            <div className="flex items-center gap-2">
-              <span className={`text-[9.5px] font-semibold uppercase tracking-[0.5px] px-1.5 py-px rounded ${CATEGORY_CLASSES[n.category] || ''}`}>{n.category}</span>
-              <span className={`text-[10.5px] font-semibold tabular-nums ${n.type === 'bullish' ? 'text-emerald-700' : 'text-red-700'}`}>
-                {n.impact} {n.type === 'bullish' ? 'Bullish' : 'Bearish'}
-              </span>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  </Card>
-));
+const NewsStream = memo(() => {
+  const fetchFn = useCallback(() => fetchNews(15), []);
+  const { data: apiData, source } = useApiData(fetchFn, { refreshInterval: 60000 });
+  const articles = apiData?.articles || NEWS_ITEMS;
 
-/* ═══════════════════════ Keyword Tracker ═════════════════════ */
-const KeywordTracker = memo(() => {
-  const maxMentions = Math.max(...KEYWORD_DATA.map(k => k.mentions));
   return (
-    <Card title="Trending Keywords" badge="Sorted by Mention Volume">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-        {KEYWORD_DATA.map((k, i) => (
-          <div key={k.keyword} className="flex items-center gap-2.5 px-2.5 py-2 rounded hover:bg-slate-50 transition-colors">
-            <span className="text-[10px] font-bold text-slate-300 w-4 text-center tabular-nums">{i + 1}</span>
-            <span className="text-[12px] font-semibold text-slate-700 min-w-[120px] shrink-0">{k.keyword}</span>
-            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700" style={{ width: `${(k.mentions / maxMentions) * 100}%`, background: k.color }} />
+    <Card title="News Stream" badge="Live feed" source={source}>
+      <div className="flex flex-col gap-0.5 max-h-[360px] overflow-y-auto scrollbar-hide">
+        {articles.map((n, i) => {
+          const type = n.label === 'positive' || (n.type && n.type === 'bullish') ? 'bullish' : n.label === 'negative' || (n.type && n.type === 'bearish') ? 'bearish' : 'neutral';
+          const impact = n.impact_score || n.impact || '+0';
+          
+          return (
+            <div key={n.id || i} className="flex items-start gap-2.5 px-2 py-2.5 rounded hover:bg-slate-50 hover:translate-x-1 hover:shadow transition-all duration-200 group">
+              <div className="text-[10px] text-slate-400 font-medium w-9 shrink-0 pt-0.5 tabular-nums">
+                {n.published_at ? new Date(n.published_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : n.time}
+              </div>
+              <div className="flex-1">
+                <a href={n.url} target="_blank" rel="noreferrer" className="block text-[12px] font-medium text-slate-700 leading-snug mb-1 group-hover:text-blue-700 transition-colors">
+                  {n.headline}
+                </a>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9.5px] font-semibold uppercase tracking-[0.5px] px-1.5 py-px rounded ${CATEGORY_CLASSES[n.category] || 'bg-slate-100 text-slate-600'}`}>
+                    {n.category || 'General'}
+                  </span>
+                  {type !== 'neutral' && (
+                    <span className={`text-[10.5px] font-semibold tabular-nums ${type === 'bullish' ? 'text-emerald-700' : 'text-red-700'}`}>
+                      {impact > 0 ? `+${impact}` : impact} {type === 'bullish' ? 'Bullish' : 'Bearish'}
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <span className="text-[10px] font-medium text-slate-400 w-7 text-right tabular-nums">{k.mentions}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Card>
   );
 });
+
+
 
 
 /* ═══════════════════════ Main Tab Export ══════════════════════ */
@@ -284,10 +291,6 @@ const MacroSentiments = memo(function MacroSentiments() {
         </div>
       </section>
 
-      <section>
-        <SectionTitle>Entity Weight Tracker</SectionTitle>
-        <KeywordTracker />
-      </section>
     </div>
   );
 });
