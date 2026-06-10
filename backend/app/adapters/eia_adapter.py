@@ -12,7 +12,7 @@ settings = get_settings()
 # EIA API v2 series IDs for key fundamentals
 EIA_SERIES = {
     "us_crude_stocks": "PET.WCESTUS1.W",
-    "cushing_inventory": "PET.WCRSTOK1.W",
+    "cushing_inventory": "PET.W_EPC0_SAX_YCUOK_MBBL.W",
     "us_production": "PET.WCRFPUS2.W",
     "refinery_utilization": "PET.WPULEUS3.W",
     "us_imports": "PET.WCRIMUS2.W",

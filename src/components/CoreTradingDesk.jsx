@@ -9,7 +9,8 @@ import { useLiveChartData, useLiveMultiChartData } from '../hooks/useLiveData';
 import { useApiData } from '../hooks/useApiData';
 import {
   fetchForwardCurves, fetchCrackSpreads as apiFetchCracks,
-  fetchFundamentalsCards, fetchCovariance, fetchM1M12Heatmap, fetchWtiBrentArb
+  fetchFundamentalsCards, fetchCovariance, fetchM1M12Heatmap, fetchWtiBrentArb,
+  fetchCushing, fetchFloatingStorage, fetchSpareCapacity
 } from '../api';
 import {
   FWD_CURVE_DATA, BRENT_FWD_CURVE_DATA,
@@ -443,6 +444,31 @@ const CrackTooltip = ({ active, payload, label }) => {
   );
 };
 
+const FundamentalsPanelCards = memo(() => {
+  const { data: apiData, provenance } = useApiData(fetchFundamentalsCards, { fallback: null, refreshInterval: 60000 });
+  const cards = apiData?.cards || FUNDAMENTALS_CARDS;
+  
+  return (
+    <>
+      {cards.map(f => (
+        <div key={f.id} className="relative bg-white border border-slate-200 rounded-lg p-2.5 text-center hover:shadow-md transition-shadow">
+          {provenance?.status && (
+            <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${provenance.status === 'live' ? 'bg-green-500' : provenance.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'}`} title={`Data Source: ${provenance.status}`} />
+          )}
+          <div className="text-[8.5px] font-semibold text-slate-400 uppercase tracking-[0.4px] mb-1 leading-tight">{f.label}</div>
+          <div className="text-sm font-bold text-slate-800 tabular-nums">{f.value}<span className="text-[9px] font-medium text-slate-400 ml-0.5">{f.unit}</span></div>
+          {f.change !== null && f.change !== undefined && (
+            <div className={`text-[10px] font-semibold tabular-nums mt-0.5 ${f.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {f.change >= 0 ? '▲' : '▼'} {Math.abs(f.change).toFixed(1)}
+            </div>
+          )}
+          <div className="text-[8px] text-slate-400 mt-0.5">5yr: {f.avg5yr}</div>
+        </div>
+      ))}
+    </>
+  );
+});
+
 const CrackSpreads = memo(() => {
   const { data: apiData, provenance } = useApiData(apiFetchCracks, { fallback: null, refreshInterval: 60000 });
   const data = apiData?.data || CRACK_DATA;
@@ -484,87 +510,129 @@ const CrackSpreads = memo(() => {
 });
 
 /* ── Cushing Storage ─────────────────────────────────────────── */
-const CushingStorage = memo(() => (
-  <Card title="Cushing Storage" badge="53% Utilization">
-    <div className="mb-3">
-      <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-1">Capacity Utilization</div>
-      <div className="h-5 bg-slate-100 rounded overflow-hidden">
-        <div className="h-full rounded bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center transition-all duration-700" style={{ width: `${CUSHING_UTIL}%` }}>
-          <span className="text-[10px] font-bold text-white">{CUSHING_UTIL}%</span>
+const CushingStorage = memo(() => {
+  const { data: apiData, provenance } = useApiData(fetchCushing, { fallback: null, refreshInterval: 60000 });
+  const data = apiData?.data || CUSHING_DATA;
+  const util = apiData?.utilization || CUSHING_UTIL;
+
+  return (
+    <Card title="Cushing Storage" badge={`${util}% Utilization`} source={provenance?.status || 'mock'}>
+      <div className="mb-3">
+        <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-1">Capacity Utilization</div>
+        <div className="h-5 bg-slate-100 rounded overflow-hidden relative">
+          <div className="h-full rounded bg-gradient-to-r from-blue-500 to-blue-700 flex items-center justify-center transition-all duration-700 absolute left-0 top-0" style={{ width: `${util}%` }}>
+            <span className="text-[10px] font-bold text-white z-10">{util}%</span>
+          </div>
         </div>
       </div>
-    </div>
-    <div className="h-[140px]" style={{ minHeight: 140 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={CUSHING_DATA}>
-          <ChartGradient id="cushGrad" color="#0D47A1" />
-          <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey="week" tick={AXIS_STYLE} />
-          <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}mb`} />
-          <Tooltip content={<CustomTooltip prefix="" />} />
-          <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 10 }} />
-          <Area dataKey="stock" name="Current" stroke="#0D47A1" fill="url(#cushGrad)" strokeWidth={1.5} dot={false} />
-          <Line dataKey="avg5yr" name="5-Yr Avg" stroke="#ADB5BD" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  </Card>
-));
+      <div className="h-[140px]" style={{ minHeight: 140 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data}>
+            <ChartGradient id="cushGrad" color="#0D47A1" />
+            <CartesianGrid {...GRID_STYLE} />
+            <XAxis dataKey="week" tick={AXIS_STYLE} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}mb`} domain={['dataMin - 2', 'dataMax + 2']} />
+            <Tooltip content={<CustomTooltip prefix="" />} />
+            <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 10 }} />
+            <Area dataKey="stock" name="Current" stroke="#0D47A1" fill="url(#cushGrad)" strokeWidth={1.5} dot={false} />
+            <Line dataKey="avg5yr" name="5-Yr Avg" stroke="#ADB5BD" strokeWidth={1.5} strokeDasharray="6 3" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  );
+});
 
 /* ── Floating Storage ────────────────────────────────────────── */
-const FloatingStorage = memo(() => (
-  <Card title="Global Floating Storage" badge="With Confidence Bands">
-    <div className="h-[220px]">
-      <ResponsiveContainer>
-        <AreaChart data={FLOATING_DATA}>
-          <defs>
-            <linearGradient id="floatBand" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#0D47A1" stopOpacity={0.06} />
-              <stop offset="100%" stopColor="#0D47A1" stopOpacity={0.01} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid {...GRID_STYLE} />
-          <XAxis dataKey="day" tick={AXIS_STYLE} interval={3} />
-          <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}mb`} />
-          <Tooltip content={<CustomTooltip prefix="" />} />
-          <Area dataKey="upper" name="Upper" stroke="#CED4DA" strokeDasharray="4 3" strokeWidth={1} fill="url(#floatBand)" />
-          <Area dataKey="lower" name="Lower" stroke="#CED4DA" strokeDasharray="4 3" strokeWidth={1} fill="white" />
-          <Line dataKey="central" name="Central" stroke="#0D47A1" strokeWidth={1.5} dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  </Card>
-));
+const FloatingStorage = memo(() => {
+  const { data: apiData, provenance } = useApiData(fetchFloatingStorage, { fallback: null, refreshInterval: 60000 });
+  
+  // Transform by_region dictionary into an array for the BarChart, sorted by volume
+  const regionalData = useMemo(() => {
+    if (!apiData || !apiData.by_region) return [];
+    return Object.entries(apiData.by_region)
+      .map(([name, info]) => {
+        const vesselsCount = Array.isArray(info.vessels) ? info.vessels.length : (info.count || 0);
+        const bbl = info.bbl || (info.estimated_mb ? info.estimated_mb * 1000000 : 0);
+        return {
+          name,
+          mb: Math.round(bbl / 1000000), // Convert barrels to millions of barrels
+          vessels: vesselsCount
+        };
+      })
+      .filter(item => item.mb > 0)
+      .sort((a, b) => b.mb - a.mb);
+  }, [apiData]);
+
+  const totalMb = apiData?.total_estimated_mb || 0;
+  const vesselCount = apiData?.total_vessels || 0;
+
+  return (
+    <Card title="Global Floating Storage" badge={`${totalMb} mb Live Snapshot`} source={provenance?.status || 'mock'}>
+      <div className="flex justify-between items-center mb-1 text-[10px] text-slate-500 font-semibold tracking-wide uppercase px-1">
+        <span>Vessels: {vesselCount}</span>
+        <span>Top Region: {regionalData.length > 0 ? regionalData[0].name : 'N/A'}</span>
+      </div>
+      <div className="h-[140px]" style={{ minHeight: 140 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={regionalData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+            <CartesianGrid {...GRID_STYLE} vertical={false} />
+            <XAxis dataKey="name" tick={AXIS_STYLE} interval={0} tick={{ fontSize: 9 }} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v}mb`} />
+            <Tooltip content={<CustomTooltip prefix="" />} cursor={{ fill: 'rgba(0,0,0,0.02)' }} />
+            <Bar dataKey="mb" name="Volume" fill="#0D47A1" radius={[2, 2, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  );
+});
 
 /* ── Spare Capacity & Macro ──────────────────────────────────── */
-const SpareCapacity = memo(() => (
-  <Card title="Spare Capacity & Macro" badge="Key Indicators">
-    <div className="grid grid-cols-3 gap-2 mb-3">
-      {[
-        { label: 'OPEC Spare', value: '3.2', unit: 'mb/d', color: '' },
-        { label: 'Non-OPEC Growth', value: '+1.8', unit: 'mb/d', color: 'text-emerald-700' },
-        { label: 'Demand Growth', value: '+1.1', unit: 'mb/d', color: '' },
-      ].map(m => (
-        <div key={m.label} className="bg-slate-50 border border-slate-200 rounded p-2.5 text-center">
-          <div className="text-[9.5px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-1">{m.label}</div>
-          <div className={`text-base font-bold ${m.color || 'text-slate-800'} tabular-nums`}>{m.value} <small className="text-[10px] font-medium text-slate-400">{m.unit}</small></div>
-        </div>
-      ))}
-    </div>
-    <table className="w-full text-[11.5px]">
-      <thead><tr className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]"><th className="py-1.5 px-2 border-b border-slate-200">Macro Indicator</th><th className="py-1.5 px-2 border-b border-slate-200">Latest</th><th className="py-1.5 px-2 border-b border-slate-200">Prior</th></tr></thead>
-      <tbody className="tabular-nums">
-        {MACRO_TABLE.map(row => (
-          <tr key={row.indicator} className="border-b border-slate-100 last:border-0">
-            <td className="py-1 px-2">{row.indicator}</td>
-            <td className="py-1 px-2">{row.latest}</td>
-            <td className="py-1 px-2 text-slate-400">{row.prior}</td>
-          </tr>
+const SpareCapacity = memo(() => {
+  const { data: apiData, provenance } = useApiData(fetchSpareCapacity, { fallback: null, refreshInterval: 60000 });
+  const spareList = apiData?.spare_capacity || [
+    { indicator: 'OPEC Spare', latest: '3.2 mb/d', prior: '3.5 mb/d' },
+    { indicator: 'Non-OPEC Growth', latest: '+1.8 mb/d', prior: '+1.2 mb/d' },
+    { indicator: 'Demand Growth', latest: '+1.1 mb/d', prior: '+1.0 mb/d' },
+  ];
+  const macroTable = apiData?.macro_table || MACRO_TABLE;
+
+  return (
+    <Card title="Spare Capacity & Macro" badge="Key Indicators" source={provenance?.status || 'mock'}>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {spareList.map((m, i) => (
+          <div key={m.indicator} className="bg-slate-50 border border-slate-200 rounded p-2.5 text-center">
+            <div className="text-[9.5px] font-semibold text-slate-500 uppercase tracking-[0.5px] mb-1">
+              {m.indicator.replace(' Spare Capacity', ' Spare').replace('Global ', '')}
+            </div>
+            <div className={`text-base font-bold ${i === 1 ? 'text-emerald-700' : 'text-slate-800'} tabular-nums`}>
+              {m.latest.replace(' mb/d', '')} <small className="text-[10px] font-medium text-slate-400">mb/d</small>
+            </div>
+          </div>
         ))}
-      </tbody>
-    </table>
-  </Card>
-));
+      </div>
+      <table className="w-full text-[11.5px]">
+        <thead>
+          <tr className="text-left text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">
+            <th className="py-1.5 px-2 border-b border-slate-200">Macro Indicator</th>
+            <th className="py-1.5 px-2 border-b border-slate-200">Latest</th>
+            <th className="py-1.5 px-2 border-b border-slate-200">Prior</th>
+          </tr>
+        </thead>
+        <tbody className="tabular-nums">
+          {macroTable.map(row => (
+            <tr key={row.indicator} className="border-b border-slate-100 last:border-0">
+              <td className="py-1 px-2">{row.indicator}</td>
+              <td className="py-1 px-2">{row.latest}</td>
+              <td className="py-1 px-2 text-slate-400">{row.prior}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+});
 
 
 /* ═══════════════════════ Main Tab Export ══════════════════════ */
@@ -622,16 +690,7 @@ const CoreTradingDesk = memo(function CoreTradingDesk() {
         <SectionTitle>Fundamentals Panel</SectionTitle>
         {/* EIA Metric Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 mb-3.5">
-          {FUNDAMENTALS_CARDS.map(f => (
-            <div key={f.id} className="bg-white border border-slate-200 rounded-lg p-2.5 text-center hover:shadow-md transition-shadow">
-              <div className="text-[8.5px] font-semibold text-slate-400 uppercase tracking-[0.4px] mb-1 leading-tight">{f.label}</div>
-              <div className="text-sm font-bold text-slate-800 tabular-nums">{f.value}<span className="text-[9px] font-medium text-slate-400 ml-0.5">{f.unit}</span></div>
-              <div className={`text-[10px] font-semibold tabular-nums mt-0.5 ${f.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {f.change >= 0 ? '▲' : '▼'} {Math.abs(f.change).toFixed(1)}
-              </div>
-              <div className="text-[8px] text-slate-400 mt-0.5">5yr: {f.avg5yr}</div>
-            </div>
-          ))}
+          <FundamentalsPanelCards />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
           <CushingStorage />

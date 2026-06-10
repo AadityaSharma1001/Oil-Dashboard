@@ -16,13 +16,13 @@ from typing import Optional
 # Geofence bounding boxes for key chokepoints [min_lat, max_lat, min_lon, max_lon]
 CHOKEPOINTS = {
     "strait_of_hormuz": {
-        "bbox": [24.5, 27.5, 55.0, 57.5],
+        "bbox": [26.0, 26.8, 56.0, 56.8],
         "label": "Strait of Hormuz",
         "daily_flow_mbpd": 21.0,  # ~21 mbpd historical avg
         "description": "World's most important oil chokepoint. ~21% of global petroleum.",
     },
     "strait_of_malacca": {
-        "bbox": [0.5, 6.5, 98.5, 104.5],
+        "bbox": [2.0, 4.0, 100.5, 102.5],
         "label": "Strait of Malacca",
         "daily_flow_mbpd": 16.0,
         "description": "Key route for Middle East → East Asia oil flows.",

@@ -125,8 +125,9 @@ class ShippingAdapter(DataAdapter):
                 "total_vessels": 210,
                 "total_estimated_mb": 214.5,
                 "by_region": {
-                    "Middle East Gulf": {"count": 45, "estimated_mb": 50.2},
-                    "Southeast Asia": {"count": 75, "estimated_mb": 85.0},
+                    "Middle East Gulf": {"vessels": [1]*45, "bbl": 50200000},
+                    "Southeast Asia": {"vessels": [1]*75, "bbl": 85000000},
+                    "West Africa": {"vessels": [1]*20, "bbl": 22000000},
                 },
             },
             status=SourceStatus.MOCK, source_name=self.source_name,

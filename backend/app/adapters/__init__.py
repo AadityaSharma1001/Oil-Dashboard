@@ -10,7 +10,7 @@ from app.adapters.oilprice_adapter import OilPriceAdapter
 from app.adapters.cftc_adapter import CFTCAdapter
 from app.adapters.shipping_adapter import ShippingAdapter
 from app.adapters.finbert_adapter import FinBERTAdapter
-
+from app.adapters.web_scraper import WebScrapingAdapter
 
 def register_all_adapters():
     """Register all adapters and configure fallback chains."""
@@ -23,6 +23,7 @@ def register_all_adapters():
     registry.register(CFTCAdapter())
     registry.register(ShippingAdapter())
     registry.register(FinBERTAdapter())
+    registry.register(WebScrapingAdapter())
 
     # Configure fallback chains
     # realtime_prices: yahoo only (DXY fetched separately via TwelveData in router)
@@ -36,6 +37,7 @@ def register_all_adapters():
     registry.set_fallback_chain("news_data", ["oilprice"])
     registry.set_fallback_chain("sentiment", ["finbert"])
     registry.set_fallback_chain("shipping_data", ["shipping"])
+    registry.set_fallback_chain("web_scraper", ["web_scraper"])
 
 
 __all__ = [

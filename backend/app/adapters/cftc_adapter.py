@@ -6,8 +6,7 @@ from app.adapters.base import DataAdapter, AdapterResult, SourceStatus
 
 logger = structlog.get_logger()
 
-CFTC_URL = "https://publicreporting.cftc.gov/resource/6dca-aqww.json"
-
+CFTC_URL = "https://publicreporting.cftc.gov/resource/kh3c-gbw2.json"
 
 class CFTCAdapter(DataAdapter):
     def __init__(self):
@@ -22,7 +21,7 @@ class CFTCAdapter(DataAdapter):
             commodity = params.get("commodity", "CRUDE OIL, LIGHT SWEET")
             weeks = params.get("weeks", 12)
             resp = await self.client.get(CFTC_URL, params={
-                "$where": f"commodity_name='{commodity}'",
+                "$where": f"cftc_contract_market_code='067651'",
                 "$order": "report_date_as_yyyy_mm_dd DESC",
                 "$limit": weeks,
             })
@@ -35,10 +34,10 @@ class CFTCAdapter(DataAdapter):
                             "report_date": row.get("report_date_as_yyyy_mm_dd"),
                             "managed_money_long": int(row.get("m_money_positions_long_all", 0)),
                             "managed_money_short": int(row.get("m_money_positions_short_all", 0)),
-                            "producer_long": int(row.get("prod_merc_positions_long_all", 0)),
-                            "producer_short": int(row.get("prod_merc_positions_short_all", 0)),
+                            "producer_long": int(row.get("prod_merc_positions_long", 0)),
+                            "producer_short": int(row.get("prod_merc_positions_short", 0)),
                             "swap_dealer_long": int(row.get("swap_positions_long_all", 0)),
-                            "swap_dealer_short": int(row.get("swap_positions_short_all", 0)),
+                            "swap_dealer_short": int(row.get("swap__positions_short_all", 0)),
                         })
                     return AdapterResult(data=parsed, status=SourceStatus.LIVE, source_name=self.source_name)
             return self.get_mock_data(params)
