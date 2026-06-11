@@ -213,6 +213,10 @@ export async function fetchNews(limit = 20) {
   return apiFetch(`/sentiment/latest?limit=${limit}`);
 }
 
+export async function fetchHurricanes() {
+  return apiFetch('/hurricanes/active');
+}
+
 export async function fetchTradeSignals() {
   return apiFetch('/signals/trade');
 }

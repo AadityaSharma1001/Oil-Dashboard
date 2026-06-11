@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import {
-  ComposedChart, Line, Area,
+  ComposedChart, Line, Area, ReferenceLine,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer,
 } from 'recharts';
@@ -19,13 +19,8 @@ const VWAPTooltip = ({ active, payload }) => {
   return (
     <div className="bg-slate-900 text-white text-[10px] px-2.5 py-2 rounded-md shadow-lg min-w-[140px]">
       <div className="font-semibold text-slate-300 mb-1 border-b border-slate-700 pb-1">{d.time}</div>
-      <div className="space-y-0.5">
         <div className="flex justify-between gap-3"><span className="text-slate-400">Price</span><span className="font-semibold tabular-nums">${d.price?.toFixed(2)}</span></div>
-        <div className="flex justify-between gap-3"><span className="text-slate-400">VWAP</span><span className="font-semibold tabular-nums">${d.vwap?.toFixed(2)}</span></div>
-        <div className="flex justify-between gap-3"><span className="text-slate-400">Upper BB</span><span className="font-semibold tabular-nums text-blue-300">${d.upper_band?.toFixed(2)}</span></div>
-        <div className="flex justify-between gap-3"><span className="text-slate-400">Lower BB</span><span className="font-semibold tabular-nums text-blue-300">${d.lower_band?.toFixed(2)}</span></div>
-        <div className="flex justify-between gap-3"><span className="text-slate-400">σ Dev</span><span className={`font-semibold tabular-nums ${d.deviation > 0 ? 'text-green-400' : 'text-red-400'}`}>{d.deviation > 0 ? '+' : ''}{d.deviation}σ</span></div>
-      </div>
+        <div className="flex justify-between gap-3"><span className="text-slate-400">Z-Score</span><span className={`font-semibold tabular-nums ${d.z_score > 0 ? 'text-green-400' : d.z_score < 0 ? 'text-red-400' : 'text-slate-400'}`}>{d.z_score > 0 ? '+' : ''}{d.z_score?.toFixed(2)}σ</span></div>
     </div>
   );
 };
@@ -55,13 +50,12 @@ const VWAPChart = memo(({ title, fetchFn, accentColor, gradId }) => {
   return (
     <Card
       title={title}
-      badge="VWAP + 20-per Bollinger"
+      badge="Intraday Z-Score"
       source={source}
       footer={
         <div className="flex items-center justify-center divide-x divide-slate-200 -mx-3.5 -mb-3.5 bg-slate-50 border-t border-slate-100">
-          <Metric label="VWAP" value={lastBar.vwap?.toFixed(2)} unit="$/bbl" />
-          <Metric label="Band Width" value={lastBar.band_width?.toFixed(2)} unit="$/bbl" />
-          <Metric label="Price-VWAP" value={`${lastBar.deviation > 0 ? '+' : ''}${lastBar.deviation}σ`} unit="" color={devColor} />
+          <Metric label="Current Price" value={lastBar.price?.toFixed(2)} unit="$/bbl" />
+          <Metric label="Current Z-Score" value={`${lastBar.z_score > 0 ? '+' : ''}${lastBar.z_score?.toFixed(2)}σ`} unit="" color={lastBar.z_score > 0 ? 'text-green-500' : 'text-red-500'} />
         </div>
       }
     >
@@ -77,22 +71,16 @@ const VWAPChart = memo(({ title, fetchFn, accentColor, gradId }) => {
             </defs>
             <CartesianGrid {...GRID_STYLE} />
             <XAxis dataKey="time" tick={AXIS_STYLE} minTickGap={30} />
-            <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v.toFixed(1)}`} domain={['auto', 'auto']} width={52} />
+            <YAxis tick={AXIS_STYLE} tickFormatter={v => `${v > 0 ? '+' : ''}${v}σ`} domain={[-3.5, 3.5]} width={52} />
             <Tooltip content={<VWAPTooltip />} />
 
-            {/* Bollinger Band fill between upper and lower */}
-            <Area dataKey="upper_band" stroke="none" fill={`url(#${gradId})`} fillOpacity={1} dot={false} activeDot={false} name="__upper" legendType="none" />
-            <Area dataKey="lower_band" stroke="none" fill="#FFFFFF" fillOpacity={1} dot={false} activeDot={false} name="__lower" legendType="none" />
+            {/* Z-Score Reference Lines */}
+            <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="3 3" opacity={0.5} />
+            <ReferenceLine y={-2} stroke="#10b981" strokeDasharray="3 3" opacity={0.5} />
+            <ReferenceLine y={0} stroke="#94a3b8" opacity={0.5} />
 
-            {/* Bollinger Band lines */}
-            <Line dataKey="upper_band" name="Upper BB (+2σ)" stroke={accentColor} strokeWidth={1} strokeDasharray="4 3" dot={false} activeDot={false} />
-            <Line dataKey="lower_band" name="Lower BB (−2σ)" stroke={accentColor} strokeWidth={1} strokeDasharray="4 3" dot={false} activeDot={false} />
-
-            {/* VWAP line */}
-            <Line dataKey="vwap" name="VWAP" stroke="#868E96" strokeWidth={1.5} dot={false} activeDot={false} />
-
-            {/* Price line */}
-            <Line dataKey="price" name="Price" stroke={accentColor === '#0D47A1' ? '#0D47A1' : '#343A40'} strokeWidth={1.8} dot={false} activeDot={{ r: 3, strokeWidth: 0 }} />
+            {/* Z-Score line */}
+            <Line dataKey="z_score" name="Z-Score" stroke={accentColor} strokeWidth={2} dot={false} activeDot={{ r: 4, fill: accentColor, stroke: "#fff", strokeWidth: 2 }} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>

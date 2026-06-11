@@ -1,14 +1,14 @@
 import React from 'react';
 import GlobalHeader from './components/GlobalHeader';
-import TradingViewCharts from './components/TradingViewCharts';
 import IntradayVWAP from './components/IntradayVWAP';
 import SpreadAndFly from './components/SpreadAndFly';
 import FiveYearRange from './components/FiveYearRange';
 import CoreTradingDesk from './components/CoreTradingDesk';
 import COTPositioning from './components/COTPositioning';
-import BDTIFreight from './components/BDTIFreight';
 import STEOBalance from './components/STEOBalance';
 import MacroSentiments from './components/MacroSentiments';
+import StormTracker from './components/StormTracker';
+import SentimentSidebar from './components/SentimentSidebar';
 
 const SectionDivider = ({ label }) => (
   <div className="flex items-center gap-4 pt-6 pb-2">
@@ -24,21 +24,30 @@ export default function App() {
       <GlobalHeader />
 
       <main className="max-w-[1600px] mx-auto px-5 py-4 pb-10 space-y-2">
-        {/* Live TradingView Charts */}
-        <SectionDivider label="Live Markets" />
-        <TradingViewCharts />
+        {/* ─── Top Section: Charts (left) + Sentiment Sidebar (right) ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
+          {/* Left: Intraday Charts, Spread & Fly, 5-Year Range */}
+          <div className="space-y-2">
+            <SectionDivider label="Intraday VWAP & Z-Score" />
+            <IntradayVWAP />
 
-        {/* Intraday VWAP + Bollinger Bands */}
-        <SectionDivider label="Intraday VWAP & Bollinger Bands" />
-        <IntradayVWAP />
+            <SectionDivider label="Spread & Fly" />
+            <SpreadAndFly />
 
-        {/* Brent-WTI Spread & Butterfly */}
-        <SectionDivider label="Spread & Fly" />
-        <SpreadAndFly />
+            <SectionDivider label="5-Year Same-Week Range" />
+            <FiveYearRange />
+          </div>
 
-        {/* 5-Year Same-Week Range */}
-        <SectionDivider label="5-Year Same-Week Range" />
-        <FiveYearRange />
+          {/* Right: Sentiment Sidebar */}
+          <div className="pt-8">
+            <div className="flex items-center gap-4 pb-2 mb-2">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+              <span className="text-[11px] font-bold uppercase tracking-[2px] text-slate-400 shrink-0">Sentiment & Signals</span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
+            </div>
+            <SentimentSidebar />
+          </div>
+        </div>
 
         {/* Core Trading Desk */}
         <SectionDivider label="Core Trading Desk" />
@@ -46,9 +55,8 @@ export default function App() {
 
         {/* Positioning & Flows */}
         <SectionDivider label="Positioning & Flows" />
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 gap-3.5">
           <COTPositioning />
-          <BDTIFreight />
         </div>
 
         {/* Global Oil Balance */}
@@ -58,6 +66,10 @@ export default function App() {
         {/* Macro Sentiments & Seasonality */}
         <SectionDivider label="Macro Sentiments & Seasonality" />
         <MacroSentiments />
+
+        {/* Storm Tracker & Impact */}
+        <SectionDivider label="Live Storm Tracker & Gulf Impacts" />
+        <StormTracker />
       </main>
 
       {/* Footer */}

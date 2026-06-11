@@ -282,17 +282,9 @@ const MacroSentiments = memo(function MacroSentiments() {
           <SeasonalMetricsSidebar commodity={commodity} />
         </div>
       </section>
-
-      <section>
-        <SectionTitle>Sentiment Analysis & News Stream</SectionTitle>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
-          <SentimentPanel />
-          <NewsStream />
-        </div>
-      </section>
-
     </div>
   );
 });
 
 export default MacroSentiments;
+export { SentimentPanel, NewsStream };

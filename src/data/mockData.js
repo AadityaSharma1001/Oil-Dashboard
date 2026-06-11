@@ -16,21 +16,20 @@ export const INITIAL_TICKERS = [
 ];
 
 /* ── Tab 1: Forward Curve ────────────────────────────────────── */
-export const FWD_CURVE_MONTHS = Array.from({ length: 36 }, (_, i) => `M${i + 1}`);
-export const FWD_CURVE_CURRENT = [72.45,72.10,71.80,71.55,71.30,71.00,70.75,70.50,70.30,70.10,69.90,69.75,69.60,69.45,69.30,69.20,69.10,69.00,68.90,68.82,68.75,68.70,68.65,68.60,68.55,68.52,68.50,68.48,68.46,68.44,68.42,68.40,68.38,68.37,68.36,68.35];
-export const FWD_CURVE_5YR = [68.20,68.00,67.85,67.72,67.60,67.50,67.42,67.35,67.30,67.25,67.22,67.20,67.18,67.16,67.15,67.14,67.13,67.12,67.11,67.10,67.10,67.09,67.09,67.08,67.08,67.07,67.07,67.06,67.06,67.05,67.05,67.04,67.04,67.03,67.03,67.02];
+export const FWD_CURVE_MONTHS = Array.from({ length: 35 }, (_, i) => `M${i + 1}`);
 
-export const FWD_CURVE_DATA = FWD_CURVE_MONTHS.map((m, i) => ({
-  month: m, current: FWD_CURVE_CURRENT[i], avg5yr: FWD_CURVE_5YR[i],
-}));
+function generateCurvedData(basePrice, numMonths) {
+  return Array.from({ length: numMonths }, (_, i) => {
+    const decay = 0.15 * (1 - Math.exp(-i / 12));
+    const avgDecay = 0.10 * (1 - Math.exp(-i / 12));
+    const current = +(basePrice * (1 - decay)).toFixed(2);
+    const avg5yr = +(basePrice * 0.94 * (1 - avgDecay)).toFixed(2);
+    return { month: `M${i + 1}`, current, avg5yr };
+  });
+}
 
-/* ── Tab 1: Brent Forward Curve ──────────────────────────────── */
-export const BRENT_FWD_CURRENT = [76.30,75.95,75.60,75.30,75.00,74.75,74.50,74.25,74.05,73.85,73.65,73.50,73.35,73.20,73.05,72.95,72.85,72.75,72.65,72.58,72.52,72.47,72.42,72.38,72.34,72.31,72.28,72.26,72.24,72.22,72.20,72.18,72.17,72.16,72.15,72.14];
-export const BRENT_FWD_5YR = [72.10,71.90,71.72,71.58,71.45,71.35,71.27,71.20,71.15,71.10,71.07,71.05,71.03,71.01,71.00,70.99,70.98,70.97,70.96,70.95,70.95,70.94,70.94,70.93,70.93,70.92,70.92,70.91,70.91,70.90,70.90,70.89,70.89,70.88,70.88,70.87];
-
-export const BRENT_FWD_CURVE_DATA = FWD_CURVE_MONTHS.map((m, i) => ({
-  month: m, current: BRENT_FWD_CURRENT[i], avg5yr: BRENT_FWD_5YR[i],
-}));
+export const FWD_CURVE_DATA = generateCurvedData(72.45, 35);
+export const BRENT_FWD_CURVE_DATA = generateCurvedData(76.30, 35);
 
 /* ── Tab 1: Near-Term Spreads ────────────────────────────────── */
 function generateDays(n) {

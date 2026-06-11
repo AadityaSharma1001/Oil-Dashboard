@@ -61,13 +61,13 @@ const ForwardCurve = memo(() => {
   const { data: apiData, source } = useApiData(fetchWti, { fallback: FWD_CURVE_DATA, refreshInterval: 60000 });
   const data = Array.isArray(apiData) ? apiData : FWD_CURVE_DATA;
   return (
-    <Card title="WTI Forward Curve" badge="M1–M12" source={source}>
+    <Card title="WTI Forward Curve" badge="M1–M35" source={source}>
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <ChartGradient id="fwdGrad" color="#0D47A1" />
             <CartesianGrid {...GRID_STYLE} />
-            <XAxis dataKey="month" tick={AXIS_STYLE} interval={1} />
+            <XAxis dataKey="month" tick={AXIS_STYLE} interval={2} />
             <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v}`} domain={['auto', 'auto']} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11 }} />
@@ -84,13 +84,13 @@ const BrentForwardCurve = memo(() => {
   const { data: apiData, source } = useApiData(fetchBrent, { fallback: BRENT_FWD_CURVE_DATA, refreshInterval: 60000 });
   const data = Array.isArray(apiData) ? apiData : BRENT_FWD_CURVE_DATA;
   return (
-    <Card title="Brent Forward Curve" badge="M1–M12" source={source}>
+    <Card title="Brent Forward Curve" badge="M1–M35" source={source}>
       <div className="h-[220px]" style={{ minHeight: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <ChartGradient id="brentFwdGrad" color="#343A40" />
             <CartesianGrid {...GRID_STYLE} />
-            <XAxis dataKey="month" tick={AXIS_STYLE} interval={1} />
+            <XAxis dataKey="month" tick={AXIS_STYLE} interval={2} />
             <YAxis tick={AXIS_STYLE} tickFormatter={v => `$${v}`} domain={['auto', 'auto']} />
             <Tooltip content={<CustomTooltip />} />
             <Legend iconType="plainline" iconSize={14} wrapperStyle={{ fontSize: 11 }} />
@@ -162,9 +162,9 @@ const CovMatrix = memo(() => {
   const [hoverCell, setHoverCell] = useState(null);
   const { data: apiData } = useApiData(fetchCovariance, { fallback: null, refreshInterval: 60000 });
   
-  const labels = apiData?.data?.labels || COV_LABELS;
-  const values = apiData?.data?.values || COV_VALUES;
-  const highlights = apiData?.data?.highlights || COV_HIGHLIGHT;
+  const labels = apiData?.labels || COV_LABELS;
+  const values = apiData?.values || COV_VALUES;
+  const highlights = apiData?.highlights || COV_HIGHLIGHT;
 
   return (
     <Card title="EWMA Covariance Matrix" badge="λ = 0.94 · 5-Leg">
@@ -205,63 +205,56 @@ const CovMatrix = memo(() => {
   );
 });
 
-/* ── M1-M12 Heatmap (WTI + Brent) ────────────────────────────── */
+/* ── Spread Correlation Matrix ────────────────────────────────────── */
 const M1M12Heatmap = memo(() => {
+  const [hoverCell, setHoverCell] = useState(null);
   const { data: apiData } = useApiData(fetchM1M12Heatmap, { fallback: null, refreshInterval: 60000 });
-  const wtiValues = apiData?.data?.wti_values || HEATMAP_M1M12_VALUES;
-  const brentValues = apiData?.data?.brent_values || BRENT_HEATMAP_M1M12_VALUES;
-  const labels = apiData?.data?.labels || HEATMAP_M1M12_LABELS;
   
-  const wtiMax = Math.max(...wtiValues.map(Math.abs));
-  const brentMax = Math.max(...brentValues.map(Math.abs));
+  const matrix = apiData?.matrix || Array.from({ length: 11 }, () => Array(11).fill(0));
+  const labels = apiData?.labels || HEATMAP_M1M12_LABELS;
   
   return (
-    <Card title="M1-M12 Heatmap" badge="WTI & Brent">
-      <div className="flex flex-col gap-3">
-        {/* WTI Row */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: 'rgba(0,150,136,0.35)' }} />
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">WTI</span>
+    <Card title="Spread Correlation Matrix" badge="WTI M1–M12">
+      <div className="grid gap-0.5" style={{ gridTemplateColumns: `60px repeat(11, 1fr)` }}>
+        <div />
+        {labels.map(l => (
+          <div key={l} className="flex items-center justify-center h-8 text-[10px] font-semibold text-slate-500 uppercase tracking-[0.3px]">
+            {l}
           </div>
-          <div className="flex gap-1">
-            {wtiValues.map((v, i) => (
-              <div
-                key={i}
-                className="flex-1 h-8 rounded flex items-center justify-center text-[9.5px] font-medium hover:scale-110 transition-transform cursor-default"
-                style={{ background: `rgba(0,150,136,${0.08 + (Math.abs(v) / (wtiMax || 1)) * 0.35})`, color: '#00695C' }}
-                title={`${labels[i]}: $${v.toFixed(2)}`}
-              >
-                {v > 0 ? '+' : ''}{v.toFixed(2)}
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Brent Row */}
-        <div>
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: 'rgba(13,71,161,0.35)' }} />
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.5px]">Brent</span>
-          </div>
-          <div className="flex gap-1">
-            {brentValues.map((v, i) => (
-              <div
-                key={i}
-                className="flex-1 h-8 rounded flex items-center justify-center text-[9.5px] font-medium hover:scale-110 transition-transform cursor-default"
-                style={{ background: `rgba(13,71,161,${0.06 + (Math.abs(v) / (brentMax || 1)) * 0.28})`, color: '#0D47A1' }}
-                title={`${labels[i]}: $${v.toFixed(2)}`}
-              >
-                {v > 0 ? '+' : ''}{v.toFixed(2)}
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Labels */}
-        <div className="flex gap-1">
-          {labels.map(l => (
-            <div key={l} className="flex-1 text-center text-[8px] text-slate-400">{l}</div>
-          ))}
-        </div>
+        ))}
+        {matrix.map((row, r) => (
+          <React.Fragment key={r}>
+            <div className="flex items-center justify-end pr-2 h-10 text-[10px] font-semibold text-slate-500 uppercase tracking-[0.3px]">
+              {labels[r]}
+            </div>
+            {row.map((val, c) => {
+              const isDiag = r === c;
+              const isHovered = hoverCell?.r === r && hoverCell?.c === c;
+              const isRowCol = hoverCell && (hoverCell.r === r || hoverCell.c === c);
+              
+              const intensity = Math.abs(val);
+              const bgAlpha = isDiag ? 0.03 : intensity * 0.35;
+              const bgColor = val > 0 ? `rgba(37, 99, 235, ${bgAlpha})` : `rgba(220, 38, 38, ${bgAlpha})`;
+              const textColor = isDiag ? '#94a3b8' : (intensity > 0.6 ? '#1e3a8a' : '#475569');
+              
+              return (
+                <div
+                  key={c}
+                  onMouseEnter={() => setHoverCell({ r, c })}
+                  onMouseLeave={() => setHoverCell(null)}
+                  className={`flex items-center justify-center h-10 rounded text-[11px] font-medium tabular-nums cursor-default transition-all duration-150
+                    ${isHovered ? 'scale-110 shadow-md z-10 ring-2 ring-blue-300 font-bold bg-white' : ''}
+                    ${isRowCol && !isHovered ? 'brightness-95' : ''}
+                  `}
+                  style={{ backgroundColor: !isHovered ? bgColor : undefined, color: textColor }}
+                  title={`${labels[r]} vs ${labels[c]}: ${val.toFixed(2)}`}
+                >
+                  {val.toFixed(2)}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
       </div>
     </Card>
   );
@@ -355,11 +348,11 @@ const PCADecomposition = memo(() => {
 /* ── WTI-Brent Arb ───────────────────────────────────────────── */
 const ArbChart = memo(() => {
   const { data: apiData } = useApiData(fetchWtiBrentArb, { fallback: null, refreshInterval: 60000 });
-  const data = apiData?.data?.data || ARB_DATA;
-  const current = apiData?.data?.current || -3.85;
-  const mean = apiData?.data?.mean || ARB_MEAN;
-  const std = apiData?.data?.std || ARB_STD;
-  const zScore = apiData?.data?.z_score || -0.8;
+  const data = apiData?.data || ARB_DATA;
+  const current = apiData?.current || -3.85;
+  const mean = apiData?.mean || ARB_MEAN;
+  const std = apiData?.std || ARB_STD;
+  const zScore = apiData?.z_score || -0.8;
   
   return (
     <Card
@@ -646,34 +639,31 @@ const CoreTradingDesk = memo(function CoreTradingDesk() {
       {/* Flat Price & Term Structure */}
       <section>
         <SectionTitle>Flat Price & Term Structure</SectionTitle>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mb-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
           <ForwardCurve />
           <BrentForwardCurve />
-        </div>
-        <div className="grid grid-cols-1 gap-3.5">
-          <M1M12Spread />
         </div>
       </section>
 
       {/* Stat-Arb Engine */}
       <section>
         <SectionTitle>Statistical Arbitrage Engine</SectionTitle>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 mb-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 mb-3.5">
           <CovMatrix />
-          <M1M12Heatmap />
           <PCADecomposition />
+        </div>
+        <div className="grid grid-cols-1 gap-3.5 mb-3.5">
+          <M1M12Heatmap />
         </div>
         <div className="grid grid-cols-1 gap-3.5">
           <DollarCorrelation />
         </div>
       </section>
 
-      {/* Global Arb & Differentials */}
       <section>
-        <SectionTitle>Global Arbitrage & Differentials</SectionTitle>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+        <SectionTitle>Global Arbitrage</SectionTitle>
+        <div className="grid grid-cols-1 gap-3.5">
           <ArbChart />
-          <Differentials />
         </div>
       </section>
 
