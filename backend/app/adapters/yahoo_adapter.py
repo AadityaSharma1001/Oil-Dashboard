@@ -110,7 +110,7 @@ class YahooAdapter(DataAdapter):
     async def _fetch_forward_curve(self, params: dict) -> AdapterResult:
         """Fetch front-month price and approximate a 12-month forward curve."""
         commodity = params.get("commodity", "wti")
-        num_months = params.get("months", 12)
+        num_months = params.get("months", 35)
         base_symbol = TICKER_SYMBOLS.get(commodity, "CL=F")
 
         def _get_price():
@@ -124,10 +124,11 @@ class YahooAdapter(DataAdapter):
             return self.get_mock_data(params)
 
         # Generate curve from front month with realistic backwardation/contango
+        import math
         curve_data = []
         for i in range(num_months):
-            # Approximate backwardation curve
-            decay = 0.12 * (i / num_months)
+            # Curved backwardation
+            decay = 0.15 * (1 - math.exp(-i / 12))
             price = current_price * (1 - decay)
             curve_data.append({
                 "month": f"M{i + 1}",
@@ -138,7 +139,7 @@ class YahooAdapter(DataAdapter):
         avg_base = current_price * 0.94
         for item in curve_data:
             idx = int(item["month"][1:]) - 1
-            avg_decay = 0.08 * (idx / num_months)
+            avg_decay = 0.10 * (1 - math.exp(-idx / 12))
             item["avg5yr"] = round(avg_base * (1 - avg_decay), 2)
 
         return AdapterResult(
@@ -228,13 +229,14 @@ class YahooAdapter(DataAdapter):
                 error_message="Live data unavailable — returning mock data",
             )
         elif data_type == "forward_curve":
+            import math
             commodity = params.get("commodity", "wti")
             base = 72.45 if commodity == "wti" else 76.30
-            months = params.get("months", 12)
+            months = params.get("months", 35)
             curve = []
             for i in range(months):
-                decay = 0.12 * (i / months)
-                avg_decay = 0.08 * (i / months)
+                decay = 0.15 * (1 - math.exp(-i / 12))
+                avg_decay = 0.10 * (1 - math.exp(-i / 12))
                 curve.append({
                     "month": f"M{i + 1}",
                     "current": round(base * (1 - decay), 2),
@@ -242,6 +244,30 @@ class YahooAdapter(DataAdapter):
                 })
             return AdapterResult(
                 data=curve, status=SourceStatus.MOCK,
+                source_name=self.source_name,
+                error_message="Live data unavailable — returning mock data",
+            )
+        elif data_type == "historical":
+            import random
+            from datetime import timedelta
+            commodity = params.get("commodity", "wti")
+            base = 72.45 if commodity == "wti" else 76.30
+            limit = params.get("limit", 20)
+            data = []
+            now = datetime.utcnow()
+            for i in range(limit, 0, -1):
+                day = now - timedelta(days=i)
+                base += random.uniform(-1, 1)
+                data.append({
+                    "date": day.strftime("%Y-%m-%d"),
+                    "open": round(base, 2),
+                    "high": round(base + 0.5, 2),
+                    "low": round(base - 0.5, 2),
+                    "close": round(base, 2),
+                    "volume": 10000 + int(random.uniform(-1000, 1000)),
+                })
+            return AdapterResult(
+                data=data, status=SourceStatus.MOCK,
                 source_name=self.source_name,
                 error_message="Live data unavailable — returning mock data",
             )

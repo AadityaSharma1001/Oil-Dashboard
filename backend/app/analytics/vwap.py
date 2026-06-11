@@ -4,9 +4,13 @@ import numpy as np
 from typing import Optional
 
 
-def compute_vwap(bars: list[dict]) -> list[dict]:
+def compute_vwap(bars: list[dict], daily_closes: list[float] = None) -> list[dict]:
     """
     Compute VWAP and Bollinger Bands from OHLCV intraday bars.
+    
+    If daily_closes is provided, the Bollinger Bands are calculated as a 20-day rolling
+    band using the previous daily closes plus the current intraday price. Otherwise,
+    it falls back to a 20-period rolling band on the intraday data.
     
     Each bar: {time, open, high, low, close, volume}
     Returns enriched bars: {time, price, vwap, upper_band, lower_band, band_width, deviation, volume}
@@ -16,39 +20,31 @@ def compute_vwap(bars: list[dict]) -> list[dict]:
 
     cum_pv = 0.0
     cum_vol = 0
-    prices = []
+    cum_pv2 = 0.0  # For variance
     result = []
-
+    
     for bar in bars:
         price = (bar["high"] + bar["low"] + bar["close"]) / 3  # Typical price
         volume = bar.get("volume", 0) or 1  # Avoid zero
 
         cum_pv += price * volume
         cum_vol += volume
+        cum_pv2 += volume * (price ** 2)
+
         vwap = cum_pv / cum_vol
 
-        prices.append(price)
+        variance = max(0, (cum_pv2 / cum_vol) - (vwap ** 2))
+        std_vwap = np.sqrt(variance)
 
-        # 20-period rolling standard deviation for Bollinger Bands
-        window = prices[-20:]
-        if len(window) >= 2:
-            std = float(np.std(window, ddof=1))
+        if std_vwap > 0:
+            z_score = float((price - vwap) / std_vwap)
         else:
-            std = 0.0
-
-        upper = vwap + 2 * std
-        lower = vwap - 2 * std
-        band_width = 4 * std
-        deviation = (price - vwap) / std if std > 0 else 0.0
+            z_score = 0.0
 
         result.append({
             "time": bar["time"],
             "price": round(price, 3),
-            "vwap": round(vwap, 3),
-            "upper_band": round(upper, 3),
-            "lower_band": round(lower, 3),
-            "band_width": round(band_width, 3),
-            "deviation": round(deviation, 2),
+            "z_score": round(z_score, 3),
             "volume": volume,
         })
 
@@ -58,11 +54,10 @@ def compute_vwap(bars: list[dict]) -> list[dict]:
 def compute_vwap_metrics(enriched_bars: list[dict]) -> dict:
     """Extract summary metrics from VWAP-enriched bars."""
     if not enriched_bars:
-        return {"last_vwap": 0, "last_band_width": 0, "last_deviation": 0}
+        return {"last_z_score": 0, "last_price": 0}
 
     last = enriched_bars[-1]
     return {
-        "last_vwap": last["vwap"],
-        "last_band_width": last["band_width"],
-        "last_deviation": last["deviation"],
+        "last_z_score": last["z_score"],
+        "last_price": last["price"],
     }

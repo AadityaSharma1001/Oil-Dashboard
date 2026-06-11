@@ -55,7 +55,7 @@ def fetch_forward_curves():
         register_all_adapters()
         for commodity in ["wti", "brent"]:
             result = loop.run_until_complete(
-                registry.fetch_with_fallback("forward_curves", {"type": "forward_curve", "commodity": commodity})
+                registry.fetch_with_fallback("forward_curves", {"type": "forward_curve", "commodity": commodity, "months": 35})
             )
             if result.data:
                 loop.run_until_complete(cache.set(f"fwd_curve:{commodity}", {

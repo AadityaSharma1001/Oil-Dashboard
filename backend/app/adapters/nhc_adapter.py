@@ -33,11 +33,11 @@ class NHCAdapter(DataAdapter):
                     "classification": storm.get("classification", ""),
                     "intensity": storm.get("intensity", 0),
                     "pressure": storm.get("pressure", 0),
-                    "lat": storm.get("lat", 0),
-                    "lon": storm.get("lon", 0),
+                    "lat": storm.get("latitudeNumeric", storm.get("lat", 0)),
+                    "lon": storm.get("longitudeNumeric", storm.get("lon", 0)),
                     "movement_dir": storm.get("movementDir", ""),
                     "movement_speed": storm.get("movementSpeed", 0),
-                    "url": storm.get("url", ""),
+                    "url": storm.get("publicAdvisory", {}).get("url") or storm.get("forecastAdvisory", {}).get("url", ""),
                 })
 
             return AdapterResult(
