@@ -10,7 +10,7 @@ from app.observability.metrics import WS_CONNECTIONS, WS_MESSAGES_SENT
 
 logger = structlog.get_logger()
 
-ALLOWED_ROOMS = {"tickers", "intraday:wti", "intraday:brent", "alerts", "hurricanes"}
+ALLOWED_ROOMS = {"tickers", "intraday:wti", "intraday:brent", "alerts", "hurricanes", "trading"}
 
 
 class ConnectionManager:

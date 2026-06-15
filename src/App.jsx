@@ -9,6 +9,7 @@ import STEOBalance from './components/STEOBalance';
 import MacroSentiments from './components/MacroSentiments';
 import StormTracker from './components/StormTracker';
 import SentimentSidebar from './components/SentimentSidebar';
+import TradingDashboard from './components/trading/TradingDashboard';
 
 const SectionDivider = ({ label }) => (
   <div className="flex items-center gap-4 pt-6 pb-2">
@@ -24,6 +25,11 @@ export default function App() {
       <GlobalHeader />
 
       <main className="max-w-[1600px] mx-auto px-5 py-4 pb-10 space-y-2">
+        {/* Quantitative Trading Engine */}
+        <div className="mb-8">
+          <TradingDashboard />
+        </div>
+
         {/* ─── Top Section: Charts (left) + Sentiment Sidebar (right) ─── */}
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
           {/* Left: Intraday Charts, Spread & Fly, 5-Year Range */}

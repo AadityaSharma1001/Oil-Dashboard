@@ -62,7 +62,7 @@ class YahooAdapter(DataAdapter):
 
         def _download():
             return yf.download(
-                tickers=symbols, period="2d", interval="1d",
+                tickers=symbols, period="5d", interval="1m",
                 group_by="ticker", progress=False, threads=True,
             )
 
@@ -77,14 +77,19 @@ class YahooAdapter(DataAdapter):
                     df = tickers_data[symbol] if symbol in tickers_data.columns.get_level_values(0) else None
 
                 if df is not None and not df.empty:
-                    latest = df.iloc[-1]
-                    prev = df.iloc[-2] if len(df) > 1 else df.iloc[-1]
-                    price = float(latest["Close"])
-                    if pd.isna(price):
+                    df = df.dropna(subset=["Close"])
+                    if df.empty:
                         continue
+                        
+                    latest = df.iloc[-1]
+                    price = float(latest["Close"])
                     
-                    prev_close = float(prev["Close"])
-                    if pd.isna(prev_close):
+                    # Calculate previous day's close
+                    days = df.index.normalize().unique()
+                    if len(days) > 1:
+                        prev_day_data = df[df.index.normalize() == days[-2]]
+                        prev_close = float(prev_day_data.iloc[-1]["Close"]) if not prev_day_data.empty else price
+                    else:
                         prev_close = price
                         
                     change = price - prev_close

@@ -65,6 +65,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("news_startup_failed", error=str(e))
 
+    # Initialize Paper Trading Engine
+    try:
+        from app.services.trading.orchestrator import start_trading_engine
+        from app.services.trading.state_manager import state_manager
+        
+        start_trading_engine()
+        
+        trading_task = asyncio.create_task(state_manager.poll_data())
+        background_tasks.append(trading_task)
+    except Exception as e:
+        logger.error(f"trading_engine_startup_failed: {e}")
+
     yield
 
     # ── Shutdown ──

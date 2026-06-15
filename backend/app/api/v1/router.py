@@ -1608,6 +1608,28 @@ async def websocket_endpoint(websocket: WebSocket, room: str):
         return
 
     await ws_manager.connect(websocket, room)
+    
+    if room == "trading":
+        try:
+            from app.services.trading.state_manager import state_manager
+            from app.services.trading.paper_broker import paper_broker
+            
+            payload = {
+                "type": "trading_update",
+                "hmm_regimes": {},
+                "active_signals": {},
+                "positions": {k: dict(v) for k, v in paper_broker.open_positions.items()},
+                "z_score": 0.0,
+                "metrics": paper_broker.get_metrics(),
+                "prices": dict(state_manager.latest_prices),
+                "trade_ledger": list(paper_broker.trade_ledger)
+            }
+            payload["metrics"]["unrealized_pnl"] = paper_broker.get_unrealized_pnl(state_manager.latest_prices)
+                    
+            await websocket.send_json(payload)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"Error sending initial trading state: {e}")
     try:
         while True:
             data = await asyncio.wait_for(websocket.receive_text(), timeout=30)
